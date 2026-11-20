@@ -1,0 +1,8 @@
+{
+  "apiVersion": 1,
+  "id": "clock",
+  "name": "Часы",
+  "version": "1.0.0",
+  "description": "Местное время, дата и день недели",
+  "capabilities": []
+}
