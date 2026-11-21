@@ -53,6 +53,7 @@ class Action(BaseModel):
 
 
 class Definition(BaseModel):
+    description: str = Field(default="", max_length=2000)
     name: str = Field(min_length=1, max_length=100)
     rows: list[list[Element]] = Field(min_length=1, max_length=64)
     actions: list[Action] = Field(max_length=64)
@@ -124,7 +125,7 @@ def save(body, template_id=None, creation_key=None):
             existing = conn.execute("SELECT definition FROM templates WHERE id=?", (template_id,)).fetchone()
             if existing is None:
                 conn.execute("INSERT INTO templates VALUES (?, ?)", (template_id, body.model_dump_json()))
-            elif json.loads(existing["definition"]) != body.model_dump():
+            elif Definition.model_validate_json(existing["definition"]) != body:
                 raise HTTPException(409, "Шаблон уже сохранён. Откройте его для редактирования.")
         else:
             revision = body.revision
@@ -133,7 +134,7 @@ def save(body, template_id=None, creation_key=None):
                 AND json_extract(definition,'$.revision')=?""", (body.model_dump_json(), template_id, revision))
             if not changed.rowcount:
                 current = conn.execute("SELECT definition FROM templates WHERE id=?", (template_id,)).fetchone()
-                if current and json.loads(current["definition"]) == body.model_dump():
+                if current and Definition.model_validate_json(current["definition"]) == body:
                     return {"id": template_id, **body.model_dump()}
                 raise HTTPException(409, "Версия шаблона изменилась. Откройте его заново.")
             # Revalidate saved controls against the edited ranges. Outputs belong to the old bindings.

@@ -267,7 +267,9 @@ export function App() {
       </fieldset>
     </Modal>}
     {panel?.mode === 'builder' && data && <Modal title="Конструктор виджетов" pending={busy} close={() => setPanel(null)}>
-      <Builder templates={data.templates} busy={busy} setBusy={setBusy} saved={async template => {
+      <Builder templates={data.templates} busy={busy} setBusy={setBusy}
+        imported={template => setData(current => current && { ...current, templates: [...current.templates.filter(t => t.id !== template.id), template] })}
+        saved={async template => {
         try {
           await reload()
         } catch (e) {
@@ -280,7 +282,7 @@ export function App() {
     </Modal>}
     {panel?.mode === 'add' && data && desktop && <Modal title="Добавить виджет" close={() => { setError(''); setPanel(null) }}>
       {data.plugins.length === 0 && data.templates.length === 0 && <p>Доступных плагинов пока нет.</p>}
-      {[...data.plugins, ...data.templates.map(t => ({ id: t.id, name: t.name, description: 'Пользовательский шаблон' }))].map(p => <button className="choice" key={p.id} disabled={busy}
+      {[...data.plugins, ...data.templates.map(t => ({ id: t.id, name: t.name, description: t.description || 'Пользовательский шаблон' }))].map(p => <button className="choice" key={p.id} disabled={busy}
         onClick={() => void mutate(async () => {
           await api('desktops/' + desktop.id + '/widgets', 'POST', { plugin_id: p.id, rows })
           setPanel(null)

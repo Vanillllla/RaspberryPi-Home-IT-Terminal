@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { api } from '../api'
 import { ElementView } from './TemplateCard'
+import { TemplateImport } from './TemplateImport'
 import { ActionEditor } from './ActionEditor'
 import { actionKinds, colors, emptyDraft, kinds, newAction, newItem, randomKey, type ActionKind, type Color,
   type Draft, type Item, type Kind, type Template } from './model'
@@ -19,10 +20,11 @@ interface Props {
   templates: Template[]
   busy: boolean
   setBusy: (value: boolean) => void
+  imported: (template: Template) => void
   saved: (template: Template) => Promise<void>
 }
 
-export function Builder({ templates, busy, setBusy, saved }: Props) {
+export function Builder({ templates, busy, setBusy, imported, saved }: Props) {
   const [draft, setDraft] = useState<Draft>(emptyDraft)
   const [templateId, setTemplateId] = useState('')
   const [creationKey, setCreationKey] = useState(() => randomKey())
@@ -87,6 +89,9 @@ export function Builder({ templates, busy, setBusy, saved }: Props) {
       </select></label>
       <label>Название шаблона<input value={draft.name} maxLength={100} placeholder="Например, Домашний сервер"
         onChange={e => change({ name: e.target.value })} /></label>
+      <label>Описание<input value={draft.description ?? ''} maxLength={2000}
+        onChange={e => change({ description: e.target.value })} /></label>
+      <TemplateImport setBusy={setBusy} imported={imported} open={open} />
       <button className="primary" disabled={busy} onClick={save}>Сохранить шаблон</button>
     </div>
     {error && <p role="alert">{error}</p>}

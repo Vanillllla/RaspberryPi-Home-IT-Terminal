@@ -6,6 +6,10 @@ dialog:has(.builder) { width: min(1380px, 96vw); max-width: 96vw; height: 92dvh;
 .builder h3 { font-size: 1rem; }
 .builder h4 { font-size: 1.05rem; }
 .builder-bar { display: flex; flex-wrap: wrap; align-items: end; gap: .75rem; border-bottom: 1px solid var(--line); padding-bottom: .9rem; }
+.template-import, .import-result { display: grid; gap: .4rem; }
+.template-import { min-width: 0; max-width: 100%; overflow-wrap: anywhere; }
+.template-import p { margin: 0; }
+.import-options { display: flex; flex-wrap: wrap; gap: .4rem; }
 .builder-bar label { flex: 1 1 10rem; }
 .builder-bar label, .builder-inspector label { display: grid; gap: .3rem; font-size: .9rem; }
 .builder :is(input,select,textarea):not([type=checkbox]):not([type=range]) {

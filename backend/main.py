@@ -7,6 +7,7 @@ from pydantic import BaseModel, Field
 
 from .discovery import discover
 from .layout import COLUMNS, DEFAULT_WIDTH, DEFAULT_HEIGHT, MAX_ROWS, Layout, row_count
+from .template_packages import discover_packages, router as packages_router
 from .templates import router as templates_router, templates
 from .storage import database, initialize, insert_desktop, instance
 
@@ -14,11 +15,13 @@ from .storage import database, initialize, insert_desktop, instance
 @asynccontextmanager
 async def lifespan(app):
     initialize()
+    discover_packages()
     yield
 
 
 app = FastAPI(title="Pi Terminal", lifespan=lifespan)
 app.include_router(templates_router)
+app.include_router(packages_router)
 plugins = discover(app)
 
 

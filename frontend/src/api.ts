@@ -18,10 +18,11 @@ export interface State {
 }
 
 export async function api<T>(path: string, method = 'GET', body?: unknown): Promise<T> {
+  const file = body instanceof Blob
   const response = await fetch('/api/' + path, {
     method,
-    headers: body === undefined ? undefined : { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
+    headers: file || body === undefined ? undefined : { 'Content-Type': 'application/json' },
+    body: file ? body : JSON.stringify(body),
   })
   if (!response.ok) {
     const error = await response.json().catch(() => ({}))

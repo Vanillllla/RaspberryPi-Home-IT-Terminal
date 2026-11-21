@@ -20,7 +20,7 @@ export interface Action {
   host: string; port: number | null; url: string; path: string; code: string
   targets: { element: string; field: string }[]
 }
-export interface Draft { name: string; rows: Item[][]; actions: Action[]; revision: number }
+export interface Draft { name: string; description?: string; rows: Item[][]; actions: Action[]; revision: number }
 export interface Template extends Draft { id: string }
 
 export function randomKey(bytes = 16) {
