@@ -24,6 +24,43 @@ npm run dev
 
 Откройте [Pi Terminal в браузере Windows](http://localhost:5173). Запуск рассчитан на стандартный проброс localhost в WSL2. Vite передаёт запросы `/api` на FastAPI. Для диагностики откройте [состояние приложения через Vite](http://localhost:5173/api/state). Остановить каждый процесс можно сочетанием Ctrl+C.
 
+### Доступ из домашней сети и VPN
+
+В режиме WSL2 NAT Windows может принимать подключения на выбранных сетевых IPv4-адресах и передавать их на `127.0.0.1:5173`. Запустите оба процесса как описано выше и проверьте `http://127.0.0.1:5173/api/state` в Windows. Проброс использует Windows localhost, поэтому при смене внутреннего IP WSL обновлять его не требуется. [Сетевая документация WSL](https://learn.microsoft.com/windows/wsl/networking)
+
+В PowerShell от имени администратора найдите IPv4-адреса нужных интерфейсов командой `Get-NetIPAddress -AddressFamily IPv4`. В примере ниже подставьте адрес Windows и подсеть клиентов для каждого доверенного интерфейса. Для WireGuard укажите адреса клиентов или подсети за пиром, которым нужен доступ. Адрес самого Windows-интерфейса WireGuard может иметь префикс `/32`.
+
+```powershell
+$networks = @{
+    '192.168.1.106' = @('192.168.1.0/24') # Домашняя сеть
+    '10.77.77.2' = @('10.77.77.0/24')    # WireGuard
+}
+
+foreach ($address in $networks.Keys) {
+    $interface = (Get-NetIPAddress -AddressFamily IPv4 -IPAddress $address -ErrorAction Stop).InterfaceAlias
+    $name = "RaspberryDashboard-5173-$address"
+    if (Get-NetFirewallRule -Name $name -ErrorAction SilentlyContinue) {
+        Set-NetFirewallRule -Name $name -InterfaceAlias $interface -RemoteAddress $networks[$address] -ErrorAction Stop
+    } else {
+        New-NetFirewallRule -Name $name -DisplayName $name -Direction Inbound -Action Allow `
+            -Protocol TCP -LocalPort 5173 -LocalAddress $address -RemoteAddress $networks[$address] `
+            -InterfaceAlias $interface -ErrorAction Stop | Out-Null
+    }
+    netsh.exe interface portproxy add v4tov4 listenaddress=$address listenport=5173 connectaddress=127.0.0.1 connectport=5173
+    if ($LASTEXITCODE -ne 0) { throw "Не удалось настроить проброс для $address" }
+}
+```
+
+На другом устройстве откройте `http://<IPv4 Windows в этой сети>:5173`. Для проверки откройте также `/api/state` на том же адресе. У клиента WireGuard должен быть маршрут к VPN-адресу Windows через нужного пира. У дашборда нет авторизации, поэтому используйте только доверенные подсети и оставьте порт закрытым для интернета.
+
+Если адрес Windows изменился или доступ больше не нужен, удалите проброс и правило для этого адреса. После смены адреса повторите настройку с новым IPv4.
+
+```powershell
+$address = '192.168.1.106'
+netsh.exe interface portproxy delete v4tov4 listenaddress=$address listenport=5173
+Remove-NetFirewallRule -Name "RaspberryDashboard-5173-$address"
+```
+
 ## Работа с прототипом
 
 - Первый запуск создаёт пустой рабочий стол. Нажмите **+ Виджет → Часы**. Повторите для второго экземпляра.
