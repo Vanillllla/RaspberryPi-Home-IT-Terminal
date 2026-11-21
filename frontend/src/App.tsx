@@ -18,7 +18,10 @@ function Modal({ title, close, children }: { title: string; close: () => void; c
   </dialog>
 }
 
-type Panel = { mode: 'add' } | { mode: 'actions' | 'Settings' | 'Details'; id: number }
+type Theme = 'light' | 'dark'
+const themeKey = 'pi-terminal-theme'
+
+type Panel = { mode: 'add' | 'panel-settings' } | { mode: 'actions' | 'Settings' | 'Details'; id: number }
 
 export function App() {
   const [data, setData] = useState<State | null>(null)
@@ -26,6 +29,18 @@ export function App() {
   const [panel, setPanel] = useState<Panel | null>(null)
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
+  const [theme, setTheme] = useState<Theme>(() => {
+    try { return localStorage.getItem(themeKey) === 'dark' ? 'dark' : 'light' }
+    catch { return 'light' }
+  })
+  useLayoutEffect(() => { document.documentElement.dataset.theme = theme }, [theme])
+
+  function chooseTheme(value: Theme) {
+    setTheme(value)
+    try { localStorage.setItem(themeKey, value) }
+    catch { /* Keep the current selection when browser storage is unavailable. */ }
+  }
+
   const lock = useRef(false)
   const reload = useCallback(async () => setData(await api<State>('state')), [])
   useEffect(() => { reload().catch(e => setError(e.message)) }, [reload])
@@ -108,21 +123,30 @@ export function App() {
     </>
   }
 
-  const opened = panel && panel.mode !== 'add' && data?.widgets.find(w => w.id === panel.id)
+  const opened = panel && 'id' in panel && data?.widgets.find(w => w.id === panel.id)
   return <>
-    <header><span aria-hidden="true">&gt;_</span> Pi Terminal</header>
     <main>
       {error && <p role="alert">{error} <button onClick={() => void mutate(async () => {})}>Обновить</button></p>}
       {desktop && data ? <>
         <div className="toolbar">
-          <nav aria-label="Рабочие столы">
-            {data.desktops.map(d => <button key={d.id} ref={desktop.id === d.id ? activeButton : undefined} aria-current={desktop.id === d.id ? 'page' : undefined}
-              onClick={() => select(d.id)}>{d.name}</button>)}
-            <button disabled={busy} onClick={() => void mutate(async () => {
-              const next = await api<Desktop>('desktops', 'POST')
-              select(next.id)
-            })}>+ Новый стол</button>
-          </nav>
+          <div className="desktop-navigation">
+            <nav aria-label="Рабочие столы">
+              {data.desktops.map(d => <button key={d.id} ref={desktop.id === d.id ? activeButton : undefined} aria-current={desktop.id === d.id ? 'page' : undefined}
+                onClick={() => select(d.id)}>{d.name}</button>)}
+            </nav>
+            <button className="nav-action" aria-label="Создать рабочий стол" title="Создать рабочий стол"
+              disabled={busy} onClick={() => void mutate(async () => {
+                const next = await api<Desktop>('desktops', 'POST')
+                select(next.id)
+              })}>+</button>
+            <button className="nav-action" aria-label="Настройки панели" title="Настройки панели" aria-haspopup="dialog"
+              onClick={() => setPanel({ mode: 'panel-settings' })}>
+              <svg aria-hidden="true" viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round">
+                <path d="M10 3h4l.6 2.5 1.6.9 2.4-.7 2 3.5-1.8 1.8v2l1.8 1.8-2 3.5-2.4-.7-1.6.9L14 21h-4l-.6-2.5-1.6-.9-2.4.7-2-3.5L5.2 13v-2L3.4 9.2l2-3.5 2.4.7 1.6-.9Z" />
+                <circle cx="12" cy="12" r="3" />
+              </svg>
+            </button>
+          </div>
           <h1>{desktop.name}</h1>
           <button className="primary add" onClick={() => setPanel({ mode: 'add' })}>+ Виджет</button>
         </div>
@@ -135,6 +159,15 @@ export function App() {
           )} />
       </> : !error && <p>Загрузка рабочего стола…</p>}
     </main>
+    {panel?.mode === 'panel-settings' && <Modal title="Настройки панели" close={() => setPanel(null)}>
+      <fieldset className="theme-settings">
+        <legend>Тема</legend>
+        {(['light', 'dark'] as const).map(value => <label key={value}>
+          <input type="radio" name="theme" checked={theme === value} onChange={() => chooseTheme(value)} />
+          {value === 'light' ? 'Светлая' : 'Тёмная'}
+        </label>)}
+      </fieldset>
+    </Modal>}
     {panel?.mode === 'add' && data && desktop && <Modal title="Добавить виджет" close={() => setPanel(null)}>
       {data.plugins.length === 0 && <p>Доступных плагинов пока нет.</p>}
       {data.plugins.map(p => <button className="choice" key={p.id} disabled={busy}
