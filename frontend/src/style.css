@@ -7,7 +7,6 @@
   --on-accent: #fff;
   --focus: #5e5e5e;
   --line: #aaa;
-  --grid-line: #dedede;
   --surface: #fff;
   --canvas: #fff;
   --backdrop: rgb(0 0 0 / 42%);
@@ -27,7 +26,6 @@
   --on-accent: #202020;
   --focus: #c7c7c7;
   --line: #797979;
-  --grid-line: #393939;
   --surface: #242424;
   --canvas: #171717;
   --backdrop: rgb(0 0 0 / 65%);
@@ -72,9 +70,7 @@ dialog::backdrop { background: var(--backdrop); }
 .remove-widget { color: var(--text); font-weight: 700; }
 
 .board-scroll { flex: 1; min-height: 0; overflow: hidden; overflow-x: auto; border-radius: var(--radius); background: var(--canvas); }
-.board { position: relative; overflow: clip; container-type: inline-size; margin-inline: auto;
-  background-image: linear-gradient(to right, var(--grid-line) 1px, transparent 1px),
-    linear-gradient(to bottom, var(--grid-line) 1px, transparent 1px); }
+.board { position: relative; overflow: clip; container-type: inline-size; margin-inline: auto; }
 .grid-surface { position: absolute; inset: 0; touch-action: pan-y pinch-zoom; }
 .tile, .grid-target, .drop { position: absolute; top: 0; left: 0; translate: var(--x) var(--y); }
 .tile { padding: 3px; transition: translate 180ms ease-out, scale 150ms ease-out; }

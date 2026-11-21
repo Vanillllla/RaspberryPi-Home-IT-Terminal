@@ -206,7 +206,7 @@ export function Grid({ widgets, columns, maxRows, reportRows, interactive, title
     </div>
     <div className="board-scroll" ref={viewport}>
       <div ref={board} className={'board' + (selected ? ' moving' : '')}
-        style={{ width: boardWidth, aspectRatio: columns + '/' + rows, backgroundSize: (100 / columns) + '% ' + (100 / rows) + '%' }}>
+        style={{ width: boardWidth, aspectRatio: columns + '/' + rows }}>
         <div className="grid-surface" />
         {selected && target !== null && <div className="grid-target" style={geometry(target, selected.width, selected.height)} />}
         {widgets.map(w => <div key={w.id} data-slot={w.slot} data-widget={w.id}
