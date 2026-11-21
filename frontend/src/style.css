@@ -44,7 +44,7 @@ button:hover { border-color: var(--accent); }
 button:disabled { opacity: .6; cursor: wait; }
 .primary, [aria-current=page] { background: var(--accent); color: var(--on-accent); border-color: var(--accent); }
 .toolbar { display: grid; grid-template-columns: minmax(0,1fr) auto; align-items: center; gap: .5rem; padding: .5rem 0 .75rem; }
-.desktop-navigation { grid-column: 1 / -1; display: grid; grid-template-columns: minmax(0,1fr) auto auto; align-items: center; gap: .4rem; }
+.desktop-navigation { grid-column: 1 / -1; display: grid; grid-template-columns: minmax(0,1fr) repeat(3, auto); align-items: center; gap: .4rem; }
 .nav-action { width: 44px; height: 44px; padding: 0; display: grid; place-items: center; font-size: 1.5rem; line-height: 1; }
 nav { display: flex; gap: .4rem; overflow-x: auto; padding: 4px; }
 nav button { white-space: nowrap; }
@@ -116,7 +116,9 @@ dialog::backdrop { background: var(--backdrop); }
 .widget-content[data-vertical=center] { margin-block: auto; }
 .widget-content[data-vertical=bottom] { margin-block-start: auto; }
 
-.theme-settings { margin: 0; padding: .4rem 1rem; border: 1px solid var(--line); border-radius: 9px; }
-.theme-settings legend { padding-inline: .3rem; font-weight: 600; }
-.theme-settings label { display: flex; align-items: center; gap: .6rem; min-height: 44px; cursor: pointer; }
+.theme-settings, .desktop-options { margin: 0; padding: .4rem 1rem; border: 1px solid var(--line); border-radius: 9px; }
+.theme-settings legend, .desktop-options legend { padding-inline: .3rem; font-weight: 600; }
+.theme-settings label, .desktop-options label { display: flex; align-items: center; gap: .6rem; min-height: 44px; cursor: pointer; }
 input, select { color: var(--text); background-color: var(--surface); }
+
+.dialog-actions { display: flex; justify-content: flex-end; gap: .6rem; }

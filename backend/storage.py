@@ -47,7 +47,18 @@ def initialize():
         conn.execute("CREATE TABLE IF NOT EXISTS widget_sequence (last_id INTEGER NOT NULL)")
         if conn.execute("SELECT last_id FROM widget_sequence").fetchone() is None:
             conn.execute("INSERT INTO widget_sequence SELECT COALESCE(MAX(id), 0) FROM widgets")
-        conn.execute("INSERT OR IGNORE INTO desktops VALUES (1, 'Рабочий стол 1')")
+        conn.execute("CREATE TABLE IF NOT EXISTS desktop_sequence (last_id INTEGER NOT NULL)")
+        if conn.execute("SELECT last_id FROM desktop_sequence").fetchone() is None:
+            conn.execute("INSERT INTO desktop_sequence SELECT COALESCE(MAX(id), 0) FROM desktops")
+        if conn.execute("SELECT id FROM desktops LIMIT 1").fetchone() is None:
+            insert_desktop(conn)
+
+
+def insert_desktop(conn):
+    number = conn.execute("UPDATE desktop_sequence SET last_id=last_id+1 RETURNING last_id").fetchone()[0]
+    name = f"Рабочий стол {number}"
+    conn.execute("INSERT INTO desktops(id, name) VALUES (?, ?)", (number, name))
+    return {"id": number, "name": name}
 
 
 def instance(row):

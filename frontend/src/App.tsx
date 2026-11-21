@@ -8,12 +8,12 @@ import { Grid } from './Grid'
 import { PluginView } from './PluginView'
 import type { WidgetInstance } from './plugin'
 
-function Modal({ title, close, children }: { title: string; close: () => void; children: ReactNode }) {
+function Modal({ title, close, children, pending = false }: { title: string; close: () => void; children: ReactNode; pending?: boolean }) {
   const dialog = useRef<HTMLDialogElement>(null)
   useEffect(() => { dialog.current!.showModal() }, [])
-  return <dialog ref={dialog} onCancel={close} aria-labelledby="dialog-title">
+  return <dialog ref={dialog} onCancel={e => { e.preventDefault(); if (!pending) close() }} aria-labelledby="dialog-title">
     <div className="modal-head"><h2 id="dialog-title">{title}</h2>
-      <button onClick={close} aria-label="Закрыть">×</button></div>
+      <button disabled={pending} onClick={close} aria-label="Закрыть">×</button></div>
     {children}
   </dialog>
 }
@@ -21,7 +21,7 @@ function Modal({ title, close, children }: { title: string; close: () => void; c
 type Theme = 'light' | 'dark'
 const themeKey = 'pi-terminal-theme'
 
-type Panel = { mode: 'add' | 'panel-settings' } | { mode: 'actions' | 'Settings' | 'Details'; id: number }
+type Panel = { mode: 'add' | 'panel-settings' } | { mode: 'delete-desktop'; selected: number | null } | { mode: 'actions' | 'Settings' | 'Details'; id: number }
 
 export function App() {
   const [data, setData] = useState<State | null>(null)
@@ -83,14 +83,13 @@ export function App() {
     return () => window.removeEventListener('keydown', key)
   }, [panel, switchBy])
 
-  async function mutate(action: () => Promise<unknown>) {
+  async function runMutation(action: () => Promise<void>) {
     if (lock.current) return
     lock.current = true
     setBusy(true)
     setError('')
     try {
       await action()
-      await reload()
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Ошибка сохранения')
       await reload().catch(() => {})
@@ -98,6 +97,24 @@ export function App() {
       lock.current = false
       setBusy(false)
     }
+  }
+
+  function mutate(action: () => Promise<unknown>) {
+    return runMutation(async () => {
+      await action()
+      await reload()
+    })
+  }
+
+  function removeDesktop(id: number) {
+    return runMutation(async () => {
+      const next = await api<State>('desktops/' + id, 'DELETE')
+      const current = next.desktops.find(d => d.id === desktop?.id)
+      const neighbor = next.desktops.find(d => d.id > id) ?? next.desktops[next.desktops.length - 1]
+      select((current ?? neighbor).id)
+      setData(next)
+      setPanel(null)
+    })
   }
 
   function view(widget: WidgetInstance, mode: 'Widget' | 'Details' | 'Settings') {
@@ -127,7 +144,7 @@ export function App() {
   const opened = panel && 'id' in panel && data?.widgets.find(w => w.id === panel.id)
   return <>
     <main>
-      {error && panel?.mode !== 'add' && <p role="alert">{error} <button onClick={() => void mutate(async () => {})}>Обновить</button></p>}
+      {error && panel?.mode !== 'add' && panel?.mode !== 'delete-desktop' && <p role="alert">{error} <button onClick={() => void mutate(async () => {})}>Обновить</button></p>}
       {desktop && data ? <>
         <div className="toolbar">
           <div className="desktop-navigation">
@@ -140,6 +157,12 @@ export function App() {
                 const next = await api<Desktop>('desktops', 'POST')
                 select(next.id)
               })}>+</button>
+            <button className="nav-action" aria-label="Удалить рабочий стол" title="Удалить рабочий стол"
+              aria-haspopup="dialog" disabled={busy} onClick={() => { setError(''); setPanel({ mode: 'delete-desktop', selected: null }) }}>
+              <svg aria-hidden="true" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M3 6h18M9 6V3h6v3M5 6l1 15h12l1-15M10 10v7m4-7v7" />
+              </svg>
+            </button>
             <button className="nav-action" aria-label="Настройки панели" title="Настройки панели" aria-haspopup="dialog"
               onClick={() => setPanel({ mode: 'panel-settings' })}>
               <svg aria-hidden="true" viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round">
@@ -160,6 +183,29 @@ export function App() {
           )} />
       </> : !error && <p>Загрузка рабочего стола…</p>}
     </main>
+    {panel?.mode === 'delete-desktop' && data && <Modal title="Удалить рабочий стол" pending={busy}
+      close={() => { setError(''); setPanel(null) }}>
+      <form onSubmit={e => {
+        e.preventDefault()
+        if (panel.selected !== null) void removeDesktop(panel.selected)
+      }}>
+        <fieldset className="desktop-options" disabled={busy}>
+          <legend>Выберите рабочий стол</legend>
+          {data.desktops.map(d => <label key={d.id}>
+            <input type="radio" name="delete-desktop" checked={panel.selected === d.id}
+              onChange={() => { setError(''); setPanel({ mode: 'delete-desktop', selected: d.id }) }} />
+            {d.name}
+          </label>)}
+        </fieldset>
+        <p>Виджеты выбранного стола будут удалены вместе с ним.</p>
+        {data.desktops.length === 1 && <p>Вместо последнего стола появится пустой.</p>}
+        {error && <p role="alert">{error}</p>}
+        <div className="dialog-actions">
+          <button type="button" disabled={busy} onClick={() => { setError(''); setPanel(null) }}>Отмена</button>
+          <button className="primary" disabled={busy || !data.desktops.some(d => d.id === panel.selected)}>ОК</button>
+        </div>
+      </form>
+    </Modal>}
     {panel?.mode === 'panel-settings' && <Modal title="Настройки панели" close={() => setPanel(null)}>
       <fieldset className="theme-settings">
         <legend>Тема</legend>

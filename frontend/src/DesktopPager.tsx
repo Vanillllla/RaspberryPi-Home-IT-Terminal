@@ -49,7 +49,9 @@ export function DesktopPager({ desktops, active, blocked, select, render }: Prop
     previous.current = active
     if (active.id === old.id) return
     swipe.current = null
-    const direction = Math.sign(index - desktops.findIndex(d => d.id === old.id))
+    const oldIndex = desktops.findIndex(d => d.id === old.id)
+    if (oldIndex < 0) { settle(0); return }
+    const direction = Math.sign(index - oldIndex)
     setPeer({ desktop: old, side: -direction })
     settle(direction * track.current!.clientWidth + offset.current)
   }, [active, desktops, index])

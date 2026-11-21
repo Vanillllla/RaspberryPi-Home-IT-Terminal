@@ -7,7 +7,7 @@ from pydantic import BaseModel, Field
 
 from .discovery import discover
 from .layout import COLUMNS, DEFAULT_WIDTH, DEFAULT_HEIGHT, MAX_ROWS, Layout, row_count
-from .storage import database, initialize, instance
+from .storage import database, initialize, insert_desktop, instance
 
 
 @asynccontextmanager
@@ -46,29 +46,41 @@ class Settings(BaseModel):
     settings: dict
 
 
+def read_state(conn):
+    widgets = [instance(row) for row in conn.execute("SELECT * FROM widgets ORDER BY id")]
+    desktops = [dict(row) for row in conn.execute("SELECT * FROM desktops ORDER BY id")]
+    for desktop in desktops:
+        desktop["rows"] = row_count(w for w in widgets if w["desktop_id"] == desktop["id"])
+    return {
+        "columns": COLUMNS,
+        "max_rows": MAX_ROWS,
+        "desktops": desktops,
+        "widgets": widgets,
+        "plugins": list(plugins.values()),
+    }
+
+
 @app.get("/api/state")
 def state():
     with database() as conn:
-        widgets = [instance(row) for row in conn.execute("SELECT * FROM widgets ORDER BY id")]
-        desktops = [dict(row) for row in conn.execute("SELECT * FROM desktops ORDER BY id")]
-        for desktop in desktops:
-            desktop["rows"] = row_count(w for w in widgets if w["desktop_id"] == desktop["id"])
-        return {
-            "columns": COLUMNS,
-            "max_rows": MAX_ROWS,
-            "desktops": desktops,
-            "widgets": widgets,
-            "plugins": list(plugins.values()),
-        }
+        return read_state(conn)
 
 
 @app.post("/api/desktops", status_code=201)
 def create_desktop():
     with database(write=True) as conn:
-        number = conn.execute("SELECT MAX(id) + 1 FROM desktops").fetchone()[0]
-        name = f"Рабочий стол {number}"
-        conn.execute("INSERT INTO desktops VALUES (?, ?)", (number, name))
-        return {"id": number, "name": name, "rows": row_count(())}
+        return {**insert_desktop(conn), "rows": row_count(())}
+
+
+@app.delete("/api/desktops/{desktop_id}")
+def delete_desktop(desktop_id: int):
+    with database(write=True) as conn:
+        conn.execute("DELETE FROM widgets WHERE desktop_id=?", (desktop_id,))
+        if not conn.execute("DELETE FROM desktops WHERE id=?", (desktop_id,)).rowcount:
+            raise HTTPException(404, "Рабочий стол отсутствует")
+        if conn.execute("SELECT id FROM desktops LIMIT 1").fetchone() is None:
+            insert_desktop(conn)
+        return read_state(conn)
 
 
 @app.post("/api/desktops/{desktop_id}/widgets", status_code=201)
