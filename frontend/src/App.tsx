@@ -2,6 +2,7 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactNo
 import { api, type Desktop, type State } from './api'
 import { DesktopPager } from './DesktopPager'
 import { placementError } from './layout'
+import { AlignmentSettings, contentAlignment } from './AlignmentSettings'
 import { SizeSettings } from './SizeSettings'
 import { Grid } from './Grid'
 import { PluginView } from './PluginView'
@@ -94,11 +95,14 @@ export function App() {
 
   function renderCard(widget: WidgetInstance) {
     const capabilities = data?.plugins.find(p => p.id === widget.plugin_id)?.capabilities ?? []
+    const alignment = contentAlignment(widget.appearance)
     return <>
-      {view(widget, 'Widget')}
-      {capabilities.includes('details') && <button onClick={() => setPanel({ mode: 'Details', id: widget.id })}>
-        Подробнее
-      </button>}
+      <div className="widget-content" data-horizontal={alignment.horizontalAlign} data-vertical={alignment.verticalAlign}>
+        {view(widget, 'Widget')}
+        {capabilities.includes('details') && <button onClick={() => setPanel({ mode: 'Details', id: widget.id })}>
+          Подробнее
+        </button>}
+      </div>
       <button className="widget-actions" aria-label="Действия с виджетом" aria-haspopup="dialog"
         title="Действия с виджетом" onClick={() => setPanel({ mode: 'actions', id: widget.id })}>⋯</button>
     </>
@@ -155,6 +159,10 @@ export function App() {
             Math.floor(opened.slot / data.columns), width, height)
           if (reason) throw new Error(reason)
           await api('widgets/' + opened.id + '/size', 'PUT', { width, height })
+          await reload()
+        }} />
+        <AlignmentSettings key={'alignment-' + opened.id} appearance={opened.appearance} save={async (horizontalAlign, verticalAlign) => {
+          await api('widgets/' + opened.id + '/alignment', 'PUT', { horizontalAlign, verticalAlign })
           await reload()
         }} />
         {data?.plugins.find(p => p.id === opened.plugin_id)?.capabilities.includes('settings') &&

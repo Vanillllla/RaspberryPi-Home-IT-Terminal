@@ -33,7 +33,7 @@ export function SizeSettings({ widget, save }: Props) {
     }
   }
 
-  return <form className="size-settings" onSubmit={submit} onChange={() => { setSaved(false); setError('') }}>
+  return <form className="instance-settings" onSubmit={submit} onChange={() => { setSaved(false); setError('') }}>
     <h3>Размер</h3>
     <label>Ширина в клетках<input type="number" min="1" required value={width} disabled={saving}
       onChange={e => setWidth(e.target.value)} /></label>

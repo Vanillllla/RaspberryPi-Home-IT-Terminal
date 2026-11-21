@@ -76,8 +76,19 @@ dialog::backdrop { background: #15243f66; }
 @media (prefers-reduced-motion: reduce) {
   .tile, .tile.lifted { transition: none; }
 }
-.size-settings { display: grid; gap: .6rem; }
-.size-settings h3, .size-settings p { margin: 0; }
-.size-settings label { display: flex; align-items: center; gap: .6rem; justify-content: space-between; }
-.size-settings input { width: 5rem; min-height: 44px; font: inherit; border: 1px solid var(--line); border-radius: 8px; padding: .5rem; }
-.size-settings button { justify-self: start; }
+.instance-settings { display: grid; gap: .6rem; }
+.instance-settings h3, .instance-settings p { margin: 0; }
+.instance-settings label { display: flex; align-items: center; gap: .6rem; justify-content: space-between; }
+.instance-settings input { width: 5rem; }
+.instance-settings input, .instance-settings select { min-height: 44px; font: inherit; border: 1px solid var(--line); border-radius: 8px; padding: .5rem; }
+.instance-settings button { justify-self: start; }
+
+.alignment-settings { margin-top: 1.25rem; }
+.tile > article { display: flex; flex-direction: column; }
+.card-heading, .widget-content { flex: none; }
+.widget-content { display: flow-root; max-width: 100%; }
+.widget-content[data-horizontal=left] { align-self: flex-start; }
+.widget-content[data-horizontal=center] { align-self: center; }
+.widget-content[data-horizontal=right] { align-self: flex-end; }
+.widget-content[data-vertical=center] { margin-block: auto; }
+.widget-content[data-vertical=bottom] { margin-block-start: auto; }

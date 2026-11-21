@@ -7,7 +7,10 @@ from unittest.mock import patch
 from fastapi import HTTPException
 
 from backend import storage
-from backend.main import AddWidget, MoveWidget, WidgetSize, create_widget, move_widget, resize_widget, state
+from backend.main import (
+    AddWidget, ContentAlignment, MoveWidget, WidgetSize, align_content,
+    create_widget, move_widget, resize_widget, state,
+)
 
 
 class LayoutTest(unittest.TestCase):
@@ -41,6 +44,12 @@ class LayoutTest(unittest.TestCase):
             self.assertEqual((w["width"], w["height"]), (4, 2))
             self.assertEqual(w["settings"], {"label": "saved"})
             self.assertEqual(w["appearance"], {"color": "blue"})
+
+    def test_alignment_preserves_other_appearance_keys_and_instances(self):
+        expected = state()
+        align_content(1, ContentAlignment(horizontalAlign="right", verticalAlign="top"))
+        expected["widgets"][0]["appearance"].update(horizontalAlign="right", verticalAlign="top")
+        self.assertEqual(state(), expected)
 
     def test_full_rectangle_and_atomic_rejection(self):
         before = state()

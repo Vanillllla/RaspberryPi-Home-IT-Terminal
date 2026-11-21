@@ -1,5 +1,6 @@
 import json
 from contextlib import asynccontextmanager
+from typing import Literal
 
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field
@@ -30,6 +31,11 @@ class MoveWidget(BaseModel):
 class WidgetSize(BaseModel):
     width: int = Field(strict=True, gt=0)
     height: int = Field(strict=True, gt=0)
+
+
+class ContentAlignment(BaseModel):
+    horizontalAlign: Literal["left", "center", "right"]
+    verticalAlign: Literal["top", "center", "bottom"]
 
 
 class Settings(BaseModel):
@@ -102,6 +108,19 @@ def move_widget(widget_id: int, body: MoveWidget):
 @app.put("/api/widgets/{widget_id}/size")
 def resize_widget(widget_id: int, body: WidgetSize):
     return update_layout(widget_id, size=body)
+
+
+@app.put("/api/widgets/{widget_id}/alignment")
+def align_content(widget_id: int, body: ContentAlignment):
+    with database(write=True) as conn:
+        updated = conn.execute(
+            """UPDATE widgets SET appearance = json_set(appearance,
+                '$.horizontalAlign', ?, '$.verticalAlign', ?) WHERE id = ?""",
+            (body.horizontalAlign, body.verticalAlign, widget_id),
+        )
+        if not updated.rowcount:
+            raise HTTPException(404, "Экземпляр отсутствует")
+    return body
 
 
 @app.put("/api/widgets/{widget_id}/settings")
