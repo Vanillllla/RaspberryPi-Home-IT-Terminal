@@ -29,8 +29,11 @@ function Widget({ instance }: WidgetProps) {
       </output>
     </div>
     <div className="demo-row">
-      <input className="demo-slider" type="range" min="0" max="2" step="1" value={level}
-        aria-label="Цвет второго статуса" aria-valuetext={levelColor} onChange={e => setLevel(e.target.valueAsNumber)} />
+      <div className="demo-range" data-level={level}>
+        <input className="demo-slider" type="range" min="0" max="2" step="1" value={level}
+          aria-label="Цвет второго статуса" aria-valuetext={levelColor} onChange={e => setLevel(e.target.valueAsNumber)} />
+        <span className="demo-slider-track" aria-hidden="true" />
+      </div>
       <output data-color={levelColor}>Статус 2<span className="demo-sr-only"> — {levelColor}</span></output>
     </div>
   </div>
