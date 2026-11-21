@@ -9,6 +9,7 @@ interface Props {
   reportRows?: (rows: number) => void
   interactive: boolean
   title: (widget: WidgetInstance) => string
+  openActions: (id: number) => void
   render: (widget: WidgetInstance) => ReactNode
   move: (id: number, slot: number, rows: number) => Promise<void>
 }
@@ -33,7 +34,7 @@ const controlSelector = [
     .map(role => '[role~="' + role + '"]'),
 ].join(',')
 
-export function Grid({ widgets, columns, maxRows, reportRows, interactive, title, render, move }: Props) {
+export function Grid({ widgets, columns, maxRows, reportRows, interactive, title, openActions, render, move }: Props) {
   const board = useRef<HTMLDivElement>(null)
   const viewport = useRef<HTMLDivElement>(null)
   const [area, setArea] = useState({ width: 0, height: 0 })
@@ -149,6 +150,11 @@ export function Grid({ widgets, columns, maxRows, reportRows, interactive, title
     if (!e.currentTarget.contains(origin)) return
     const fromHandle = e.currentTarget.querySelector('.handle')!.contains(origin)
     if (!fromHandle && origin.closest(controlSelector)) return
+    if (origin instanceof HTMLElement && origin.classList.contains('widget-scroll')) {
+      const bounds = origin.getBoundingClientRect()
+      // Leave pointer capture to the browser when pressing a native scrollbar.
+      if (e.clientX >= bounds.left + origin.clientWidth || e.clientY >= bounds.top + origin.clientHeight) return
+    }
 
     // Capturing on the original target preserves its short-click action.
     origin.setPointerCapture(e.pointerId)
@@ -231,9 +237,11 @@ export function Grid({ widgets, columns, maxRows, reportRows, interactive, title
                 }}>
                 <span className="grip" aria-hidden="true">⠿</span>
               </button>
-              <span className="card-title">{title(w)}</span>
+              <span className="card-title" title={title(w)}>{title(w)}</span>
+              <button className="widget-actions" aria-label="Действия с виджетом" aria-haspopup="dialog"
+                title="Действия с виджетом" onClick={() => openActions(w.id)}>⋯</button>
             </div>
-            {render(w)}
+            <div className="widget-scroll">{render(w)}</div>
           </article>
         </div>)}
         {picked !== null && selected && Array.from({ length: columns * rows }, (_, slot) =>

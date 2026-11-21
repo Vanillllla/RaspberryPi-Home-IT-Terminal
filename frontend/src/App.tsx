@@ -129,16 +129,12 @@ export function App() {
   function renderCard(widget: WidgetInstance) {
     const capabilities = data?.plugins.find(p => p.id === widget.plugin_id)?.capabilities ?? []
     const alignment = contentAlignment(widget.appearance)
-    return <>
-      <div className="widget-content" data-horizontal={alignment.horizontalAlign} data-vertical={alignment.verticalAlign}>
-        {view(widget, 'Widget')}
-        {capabilities.includes('details') && <button onClick={() => setPanel({ mode: 'Details', id: widget.id })}>
-          Подробнее
-        </button>}
-      </div>
-      <button className="widget-actions" aria-label="Действия с виджетом" aria-haspopup="dialog"
-        title="Действия с виджетом" onClick={() => setPanel({ mode: 'actions', id: widget.id })}>⋯</button>
-    </>
+    return <div className="widget-content" data-horizontal={alignment.horizontalAlign} data-vertical={alignment.verticalAlign}>
+      {view(widget, 'Widget')}
+      {capabilities.includes('details') && <button onClick={() => setPanel({ mode: 'Details', id: widget.id })}>
+        Подробнее
+      </button>}
+    </div>
   }
 
   const opened = panel && 'id' in panel && data?.widgets.find(w => w.id === panel.id)
@@ -178,6 +174,7 @@ export function App() {
           render={(page, interactive) => (
             <Grid columns={data.columns} maxRows={data.max_rows} reportRows={page.id === desktop.id ? setRows : undefined} interactive={interactive && !busy} widgets={data.widgets.filter(w => w.desktop_id === page.id)}
               title={w => data.plugins.find(p => p.id === w.plugin_id)?.name ?? w.plugin_id}
+              openActions={id => setPanel({ mode: 'actions', id })}
               move={(id, slot, rows) => mutate(() => api('widgets/' + id + '/position', 'PUT', { slot, rows }))}
               render={renderCard} />
           )} />
