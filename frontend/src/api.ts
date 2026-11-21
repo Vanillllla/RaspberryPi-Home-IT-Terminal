@@ -8,6 +8,7 @@ export interface Manifest {
   capabilities: string[]
 }
 export interface State {
+  max_rows: number
   columns: number
   desktops: Desktop[]
   widgets: WidgetInstance[]

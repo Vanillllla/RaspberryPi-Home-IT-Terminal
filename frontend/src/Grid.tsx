@@ -5,11 +5,12 @@ import type { WidgetInstance } from './plugin'
 interface Props {
   widgets: WidgetInstance[]
   columns: number
-  rows: number
+  maxRows: number
+  reportRows?: (rows: number) => void
   interactive: boolean
   title: (widget: WidgetInstance) => string
   render: (widget: WidgetInstance) => ReactNode
-  move: (id: number, slot: number) => Promise<void>
+  move: (id: number, slot: number, rows: number) => Promise<void>
 }
 
 interface Press {
@@ -32,9 +33,29 @@ const controlSelector = [
     .map(role => '[role~="' + role + '"]'),
 ].join(',')
 
-export function Grid({ widgets, columns, rows, interactive, title, render, move }: Props) {
+export function Grid({ widgets, columns, maxRows, reportRows, interactive, title, render, move }: Props) {
   const board = useRef<HTMLDivElement>(null)
   const viewport = useRef<HTMLDivElement>(null)
+  const [area, setArea] = useState({ width: 0, height: 0 })
+  useLayoutEffect(() => {
+    const element = viewport.current!
+    const measure = () => {
+      const width = element.clientWidth, height = element.clientHeight
+      setArea(previous => previous.width === width && previous.height === height ? previous : { width, height })
+    }
+    measure()
+    const observer = new ResizeObserver(measure)
+    observer.observe(element)
+    return () => observer.disconnect()
+  }, [])
+
+  // Tile padding provides the gutters inside each square's footprint.
+  const preferredWidth = Math.max(720, area.width)
+  const savedRows = widgets.reduce((bottom, w) => Math.max(bottom, Math.floor(w.slot / columns) + w.height), 0)
+  const rows = Math.min(maxRows, Math.max(1, savedRows, Math.floor(area.height * columns / preferredWidth)))
+  const boardWidth = Math.min(preferredWidth, area.height * columns / rows)
+  useLayoutEffect(() => { reportRows?.(rows) }, [reportRows, rows])
+
   const press = useRef<Press | null>(null)
   const suppressClick = useRef(false)
   const [picked, setPicked] = useState<number | null>(null)
@@ -56,6 +77,7 @@ export function Grid({ widgets, columns, rows, interactive, title, render, move 
       reset()
     }
   }, [interactive])
+  useLayoutEffect(() => { reset() }, [rows, boardWidth])
   useEffect(() => {
     function escape(e: KeyboardEvent) {
       if (interactive && e.key === 'Escape') {
@@ -92,7 +114,7 @@ export function Grid({ widgets, columns, rows, interactive, title, render, move 
     grip.tile.style.setProperty('--free-y', top + 'px')
     const x = Math.round(left / cell), y = Math.round(top / cell)
     const visible = viewport.current!.getBoundingClientRect()
-    const inside = e.clientX >= visible.left && e.clientX < visible.right &&
+    const inside = e.clientX >= Math.max(visible.left, bounds.left) && e.clientX < Math.min(visible.right, bounds.right) &&
       e.clientY >= Math.max(0, bounds.top) && e.clientY < Math.min(window.innerHeight, bounds.bottom)
     return inside && fits(w, x, y) ? y * columns + x : null
   }
@@ -101,7 +123,7 @@ export function Grid({ widgets, columns, rows, interactive, title, render, move 
     reset()
     if (slot === null || slot === w.slot || !interactive) return
     setPending({ id: w.id, slot })
-    try { await move(w.id, slot) }
+    try { await move(w.id, slot, rows) }
     finally { setPending(null) }
   }
 
@@ -184,7 +206,7 @@ export function Grid({ widgets, columns, rows, interactive, title, render, move 
     </div>
     <div className="board-scroll" ref={viewport}>
       <div ref={board} className={'board' + (selected ? ' moving' : '')}
-        style={{ aspectRatio: columns + '/' + rows, backgroundSize: (100 / columns) + '% ' + (100 / rows) + '%' }}>
+        style={{ width: boardWidth, aspectRatio: columns + '/' + rows, backgroundSize: (100 / columns) + '% ' + (100 / rows) + '%' }}>
         <div className="grid-surface" />
         {selected && target !== null && <div className="grid-target" style={geometry(target, selected.width, selected.height)} />}
         {widgets.map(w => <div key={w.id} data-slot={w.slot} data-widget={w.id}

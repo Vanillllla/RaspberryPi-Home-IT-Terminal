@@ -20,15 +20,19 @@ app = FastAPI(title="Pi Terminal", lifespan=lifespan)
 plugins = discover(app)
 
 
-class AddWidget(BaseModel):
+class ViewportLayout(BaseModel):
+    rows: int | None = Field(default=None, strict=True, ge=1, le=MAX_ROWS)
+
+
+class AddWidget(ViewportLayout):
     plugin_id: str
 
 
-class MoveWidget(BaseModel):
+class MoveWidget(ViewportLayout):
     slot: int = Field(strict=True, ge=0, lt=COLUMNS * MAX_ROWS)
 
 
-class WidgetSize(BaseModel):
+class WidgetSize(ViewportLayout):
     width: int = Field(strict=True, gt=0)
     height: int = Field(strict=True, gt=0)
 
@@ -51,6 +55,7 @@ def state():
             desktop["rows"] = row_count(w for w in widgets if w["desktop_id"] == desktop["id"])
         return {
             "columns": COLUMNS,
+            "max_rows": MAX_ROWS,
             "desktops": desktops,
             "widgets": widgets,
             "plugins": list(plugins.values()),
@@ -73,7 +78,7 @@ def create_widget(desktop_id: int, body: AddWidget):
     with database(write=True) as conn:
         if not conn.execute("SELECT id FROM desktops WHERE id=?", (desktop_id,)).fetchone():
             raise HTTPException(404, "Рабочий стол отсутствует")
-        layout = Layout(conn, desktop_id)
+        layout = Layout(conn, desktop_id, rows=body.rows)
         slot = next((s for s in range(layout.rows * COLUMNS)
                      if not layout.conflict(s, DEFAULT_WIDTH, DEFAULT_HEIGHT)), None)
         if slot is None:
@@ -86,14 +91,14 @@ def create_widget(desktop_id: int, body: AddWidget):
         return instance(row)
 
 
-def update_layout(widget_id, *, slot=None, size=None):
+def update_layout(widget_id, *, rows, slot=None, size=None):
     with database(write=True) as conn:
         w = conn.execute("SELECT * FROM widgets WHERE id=?", (widget_id,)).fetchone()
         if w is None:
             raise HTTPException(404, "Экземпляр отсутствует")
         slot = w["slot"] if slot is None else slot
         width, height = (size.width, size.height) if size else (w["width"], w["height"])
-        reason = Layout(conn, w["desktop_id"], exclude=widget_id).conflict(slot, width, height)
+        reason = Layout(conn, w["desktop_id"], rows=rows, exclude=widget_id).conflict(slot, width, height)
         if reason:
             raise HTTPException(409, reason)
         conn.execute("UPDATE widgets SET slot=?, width=?, height=? WHERE id=?", (slot, width, height, widget_id))
@@ -102,12 +107,12 @@ def update_layout(widget_id, *, slot=None, size=None):
 
 @app.put("/api/widgets/{widget_id}/position")
 def move_widget(widget_id: int, body: MoveWidget):
-    return update_layout(widget_id, slot=body.slot)
+    return update_layout(widget_id, rows=body.rows, slot=body.slot)
 
 
 @app.put("/api/widgets/{widget_id}/size")
 def resize_widget(widget_id: int, body: WidgetSize):
-    return update_layout(widget_id, size=body)
+    return update_layout(widget_id, rows=body.rows, size=body)
 
 
 @app.put("/api/widgets/{widget_id}/alignment")

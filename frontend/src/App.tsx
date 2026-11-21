@@ -28,6 +28,7 @@ export function App() {
   const [active, setActive] = useState(() => Number(sessionStorage.getItem('desktop')))
   const [panel, setPanel] = useState<Panel | null>(null)
   const [error, setError] = useState('')
+  const [rows, setRows] = useState(1)
   const [busy, setBusy] = useState(false)
   const [theme, setTheme] = useState<Theme>(() => {
     try { return localStorage.getItem(themeKey) === 'dark' ? 'dark' : 'light' }
@@ -126,7 +127,7 @@ export function App() {
   const opened = panel && 'id' in panel && data?.widgets.find(w => w.id === panel.id)
   return <>
     <main>
-      {error && <p role="alert">{error} <button onClick={() => void mutate(async () => {})}>Обновить</button></p>}
+      {error && panel?.mode !== 'add' && <p role="alert">{error} <button onClick={() => void mutate(async () => {})}>Обновить</button></p>}
       {desktop && data ? <>
         <div className="toolbar">
           <div className="desktop-navigation">
@@ -152,9 +153,9 @@ export function App() {
         </div>
         <DesktopPager desktops={data.desktops} active={desktop} select={select} blocked={panel !== null}
           render={(page, interactive) => (
-            <Grid columns={data.columns} rows={page.rows} interactive={interactive && !busy} widgets={data.widgets.filter(w => w.desktop_id === page.id)}
+            <Grid columns={data.columns} maxRows={data.max_rows} reportRows={page.id === desktop.id ? setRows : undefined} interactive={interactive && !busy} widgets={data.widgets.filter(w => w.desktop_id === page.id)}
               title={w => data.plugins.find(p => p.id === w.plugin_id)?.name ?? w.plugin_id}
-              move={(id, slot) => mutate(() => api('widgets/' + id + '/position', 'PUT', { slot }))}
+              move={(id, slot, rows) => mutate(() => api('widgets/' + id + '/position', 'PUT', { slot, rows }))}
               render={renderCard} />
           )} />
       </> : !error && <p>Загрузка рабочего стола…</p>}
@@ -168,11 +169,11 @@ export function App() {
         </label>)}
       </fieldset>
     </Modal>}
-    {panel?.mode === 'add' && data && desktop && <Modal title="Добавить виджет" close={() => setPanel(null)}>
+    {panel?.mode === 'add' && data && desktop && <Modal title="Добавить виджет" close={() => { setError(''); setPanel(null) }}>
       {data.plugins.length === 0 && <p>Доступных плагинов пока нет.</p>}
       {data.plugins.map(p => <button className="choice" key={p.id} disabled={busy}
         onClick={() => void mutate(async () => {
-          await api('desktops/' + desktop.id + '/widgets', 'POST', { plugin_id: p.id })
+          await api('desktops/' + desktop.id + '/widgets', 'POST', { plugin_id: p.id, rows })
           setPanel(null)
         })}><strong>{p.name}</strong><small>{p.description}</small></button>)}
       {error && <p role="alert">{error}</p>}
@@ -188,10 +189,10 @@ export function App() {
       close={() => setPanel(null)}>{panel.mode === 'Details' ? <div className="details-view">{view(opened, 'Details')}</div> : <>
         <SizeSettings key={opened.id} widget={opened} save={async (width, height) => {
           const reason = placementError(data.widgets.filter(w => w.desktop_id === opened.desktop_id),
-            data.columns, desktop.rows, opened.id, opened.slot % data.columns,
+            data.columns, rows, opened.id, opened.slot % data.columns,
             Math.floor(opened.slot / data.columns), width, height)
           if (reason) throw new Error(reason)
-          await api('widgets/' + opened.id + '/size', 'PUT', { width, height })
+          await api('widgets/' + opened.id + '/size', 'PUT', { width, height, rows })
           await reload()
         }} />
         <AlignmentSettings key={'alignment-' + opened.id} appearance={opened.appearance} save={async (horizontalAlign, verticalAlign) => {
