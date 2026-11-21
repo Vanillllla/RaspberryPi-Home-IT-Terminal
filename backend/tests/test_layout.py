@@ -8,8 +8,8 @@ from fastapi import HTTPException
 
 from backend import storage
 from backend.main import (
-    AddWidget, ContentAlignment, MoveWidget, WidgetSize, align_content,
-    create_widget, move_widget, resize_widget, state,
+    AddWidget, ContentAlignment, DesktopName, MoveWidget, WidgetSize, align_content,
+    create_desktop, create_widget, delete_desktop, move_widget, rename_desktop, resize_widget, state,
 )
 
 
@@ -44,6 +44,26 @@ class LayoutTest(unittest.TestCase):
             self.assertEqual((w["width"], w["height"]), (4, 2))
             self.assertEqual(w["settings"], {"label": "saved"})
             self.assertEqual(w["appearance"], {"color": "blue"})
+
+    def test_last_desktop_and_its_widgets_survive_deletion_attempt(self):
+        before = state()
+        with self.assertRaises(HTTPException) as error:
+            delete_desktop(1)
+        self.assertEqual(error.exception.status_code, 409)
+        self.assertEqual(state(), before)
+        other = create_desktop()
+        self.assertEqual(delete_desktop(other["id"]), before)
+
+    def test_rename_updates_only_the_selected_name(self):
+        create_desktop()
+        expected = state()
+        with self.assertRaises(HTTPException) as error:
+            rename_desktop(1, DesktopName(name="  "))
+        self.assertEqual(error.exception.status_code, 422)
+        self.assertEqual(state(), expected)
+        rename_desktop(1, DesktopName(name="  Серверная  "))
+        expected["desktops"][0]["name"] = "Серверная"
+        self.assertEqual(state(), expected)
 
     def test_alignment_preserves_other_appearance_keys_and_instances(self):
         expected = state()

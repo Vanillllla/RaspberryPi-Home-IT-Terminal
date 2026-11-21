@@ -41,11 +41,31 @@ button:hover { border-color: var(--accent); }
 :focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
 button:disabled { opacity: .6; cursor: wait; }
 .primary, [aria-current=page] { background: var(--accent); color: var(--on-accent); border-color: var(--accent); }
-.toolbar { display: grid; grid-template-columns: minmax(0,1fr) auto; align-items: center; gap: .5rem; padding: .5rem 0 .75rem; }
-.desktop-navigation { grid-column: 1 / -1; display: grid; grid-template-columns: minmax(0,1fr) repeat(3, auto); align-items: center; gap: .4rem; }
-.nav-action { width: 44px; height: 44px; padding: 0; display: grid; place-items: center; font-size: 1.5rem; line-height: 1; }
-nav { display: flex; gap: .4rem; overflow-x: auto; padding: 4px; }
-nav button { white-space: nowrap; }
+.toolbar { display: grid; grid-template-columns: auto minmax(0,1fr) auto; grid-template-areas: "tab widgets settings" "title title title"; align-items: center; gap: .4rem .6rem; padding-bottom: .75rem; }
+.toolbar h1 { grid-area: title; text-align: center; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.toolbar .widget-buttons { grid-area: widgets; }
+.nav-action { grid-area: settings; width: 44px; height: 44px; padding: 0; display: grid; place-items: center; }
+.desktop-navigation { grid-area: tab; align-self: start; position: relative; }
+.desktop-tab { position: relative; z-index: 6; display: flex; align-items: center; gap: .55rem; border-radius: 0 0 10px 10px; touch-action: none; user-select: none; }
+.tab-chevron { width: .5rem; height: .5rem; border: solid currentColor; border-width: 0 1.5px 1.5px 0; transform: translateY(-2px) rotate(45deg); }
+.desktop-tab[aria-expanded=true] .tab-chevron { transform: translateY(2px) rotate(225deg); }
+.drawer-backdrop { position: fixed; inset: 0; z-index: 5; background: var(--backdrop); }
+#desktop-drawer { position: absolute; top: calc(100% + 4px); left: 0; z-index: 6; width: min(34rem, calc(100vw - 2 * clamp(12px, 2vw, 32px))); max-height: calc(100dvh - 58px); overflow-y: auto; overscroll-behavior: contain; padding: 1rem; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); box-shadow: 0 5px 18px var(--shadow); }
+@media (prefers-reduced-motion: no-preference) {
+  #desktop-drawer:not([hidden]) { animation: open-drawer 160ms ease-out; }
+  @keyframes open-drawer { from { transform: translateY(-.7rem); opacity: 0; } }
+}
+.desktop-list { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(9rem, 100%), 1fr)); gap: .5rem; }
+.desktop-list button, .desktop-options label { overflow-wrap: anywhere; }
+.desktop-actions { display: flex; flex-wrap: wrap; gap: .5rem; margin-top: .8rem; padding-top: .8rem; border-top: 1px solid var(--line); }
+.desktop-actions button { flex: 1 1 9rem; }
+.desktop-actions button:disabled { cursor: default; }
+.rename-desktop, .rename-field, .rename-desktop label { display: grid; gap: .5rem; }
+.rename-desktop { gap: 1rem; }
+.rename-desktop input, .rename-desktop select { min-width: 0; width: 100%; min-height: 44px; padding: .5rem; border: 1px solid var(--line); border-radius: 8px; font: inherit; }
+@media (max-width: 480px) {
+  .toolbar { grid-template-columns: 1fr auto; grid-template-areas: "tab settings" "widgets widgets" "title title"; }
+}
 h1, h2 { margin: 0; line-height: 1.15; }
 h1 { font-size: clamp(1.5rem, 2.4vw, 2.3rem); }
 .add { justify-self: end; padding-inline: 1.4rem; }

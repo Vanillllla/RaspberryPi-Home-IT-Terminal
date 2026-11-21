@@ -3,6 +3,7 @@ import { api, type Desktop, type State } from './api'
 import { Builder } from './builder/Builder'
 import { TemplateCard } from './builder/TemplateCard'
 import type { Inputs, Outputs } from './builder/model'
+import { DesktopNavigation } from './DesktopNavigation'
 import { DesktopPager } from './DesktopPager'
 import { placementError } from './layout'
 import { AlignmentSettings, contentAlignment } from './AlignmentSettings'
@@ -24,7 +25,11 @@ function Modal({ title, close, children, pending = false }: { title: string; clo
 type Theme = 'light' | 'dark'
 const themeKey = 'pi-terminal-theme'
 
-type Panel = { mode: 'add' | 'panel-settings' | 'builder' } | { mode: 'delete-desktop'; selected: number | null } | { mode: 'actions' | 'Settings' | 'Details'; id: number }
+type Panel =
+  | { mode: 'desktops' | 'add' | 'panel-settings' | 'builder' }
+  | { mode: 'rename-desktop'; selected: number; name: string }
+  | { mode: 'delete-desktop'; selected: number | null }
+  | { mode: 'actions' | 'Settings' | 'Details'; id: number }
 
 export function App() {
   const [data, setData] = useState<State | null>(null)
@@ -69,22 +74,11 @@ export function App() {
     return () => { disposed = true; clearInterval(timer); document.removeEventListener('visibilitychange', check) }
   }, [catalogVersion, panel?.mode, reload])
 
-  const activeButton = useRef<HTMLButtonElement>(null)
-  useLayoutEffect(() => {
-    const button = activeButton.current
-    const nav = button?.parentElement
-    if (!button || !nav) return
-    const reveal = () => {
-      const item = button.getBoundingClientRect()
-      const bounds = nav.getBoundingClientRect()
-      if (item.left < bounds.left) nav.scrollLeft += item.left - bounds.left
-      else if (item.right > bounds.right) nav.scrollLeft += item.right - bounds.right
-    }
-    reveal()
-    const observer = new ResizeObserver(reveal)
-    observer.observe(nav)
-    return () => observer.disconnect()
-  }, [desktop?.id])
+  const drawerOpen = panel?.mode === 'desktops'
+  const setDrawerOpen = useCallback((open: boolean) => {
+    setError('')
+    setPanel(open ? { mode: 'desktops' } : null)
+  }, [])
 
   function select(id: number) {
     setActive(id)
@@ -173,35 +167,27 @@ export function App() {
   const opened = panel && 'id' in panel && data?.widgets.find(w => w.id === panel.id)
   return <>
     <main>
-      {error && panel?.mode !== 'add' && panel?.mode !== 'delete-desktop' && <p role="alert">{error} <button onClick={() => void mutate(async () => {})}>Обновить</button></p>}
+      {error && !drawerOpen && panel?.mode !== 'rename-desktop' && panel?.mode !== 'add' && panel?.mode !== 'delete-desktop' && <p role="alert">{error} <button onClick={() => void mutate(async () => {})}>Обновить</button></p>}
       {desktop && data ? <>
         <div className="toolbar">
-          <div className="desktop-navigation">
-            <nav aria-label="Рабочие столы">
-              {data.desktops.map(d => <button key={d.id} ref={desktop.id === d.id ? activeButton : undefined} aria-current={desktop.id === d.id ? 'page' : undefined}
-                onClick={() => select(d.id)}>{d.name}</button>)}
-            </nav>
-            <button className="nav-action" aria-label="Создать рабочий стол" title="Создать рабочий стол"
-              disabled={busy} onClick={() => void mutate(async () => {
-                const next = await api<Desktop>('desktops', 'POST')
-                select(next.id)
-              })}>+</button>
-            <button className="nav-action" aria-label="Удалить рабочий стол" title="Удалить рабочий стол"
-              aria-haspopup="dialog" disabled={busy} onClick={() => { setError(''); setPanel({ mode: 'delete-desktop', selected: null }) }}>
-              <svg aria-hidden="true" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M3 6h18M9 6V3h6v3M5 6l1 15h12l1-15M10 10v7m4-7v7" />
-              </svg>
-            </button>
-            <button className="nav-action" aria-label="Настройки панели" title="Настройки панели" aria-haspopup="dialog"
-              onClick={() => setPanel({ mode: 'panel-settings' })}>
-              <svg aria-hidden="true" viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round">
-                <path d="M10 3h4l.6 2.5 1.6.9 2.4-.7 2 3.5-1.8 1.8v2l1.8 1.8-2 3.5-2.4-.7-1.6.9L14 21h-4l-.6-2.5-1.6-.9-2.4.7-2-3.5L5.2 13v-2L3.4 9.2l2-3.5 2.4.7 1.6-.9Z" />
-                <circle cx="12" cy="12" r="3" />
-              </svg>
-            </button>
-          </div>
-          <h1>{desktop.name}</h1>
-          <div className="widget-buttons">
+          <DesktopNavigation desktops={data.desktops} active={desktop} open={drawerOpen} busy={busy}
+            setOpen={setDrawerOpen} select={select} error={error}
+            create={() => void runMutation(async () => {
+              const next = await api<Desktop>('desktops', 'POST')
+              setData(current => current && { ...current, desktops: [...current.desktops, next] })
+              select(next.id)
+            })}
+            rename={() => { setError(''); setPanel({ mode: 'rename-desktop', selected: desktop.id, name: desktop.name }) }}
+            remove={() => { setError(''); setPanel({ mode: 'delete-desktop', selected: null }) }} />
+          <button className="nav-action" inert={drawerOpen} aria-label="Настройки панели" title="Настройки панели" aria-haspopup="dialog"
+            onClick={() => setPanel({ mode: 'panel-settings' })}>
+            <svg aria-hidden="true" viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round">
+              <path d="M10 3h4l.6 2.5 1.6.9 2.4-.7 2 3.5-1.8 1.8v2l1.8 1.8-2 3.5-2.4-.7-1.6.9L14 21h-4l-.6-2.5-1.6-.9-2.4.7-2-3.5L5.2 13v-2L3.4 9.2l2-3.5 2.4.7 1.6-.9Z" />
+              <circle cx="12" cy="12" r="3" />
+            </svg>
+          </button>
+          <h1 title={desktop.name}>{desktop.name}</h1>
+          <div className="widget-buttons" inert={drawerOpen}>
             <button disabled={busy} onClick={() => setPanel({ mode: 'builder' })}>Создать виджет</button>
             <button className="primary add" onClick={() => setPanel({ mode: 'add' })}>+ Виджет</button>
           </div>
@@ -216,8 +202,40 @@ export function App() {
           )} />
       </> : !error && <p>Загрузка рабочего стола…</p>}
     </main>
+    {panel?.mode === 'rename-desktop' && data && <Modal title="Переименовать рабочий стол" pending={busy}
+      close={() => setDrawerOpen(true)}>
+      <form className="rename-desktop" onSubmit={e => {
+        e.preventDefault()
+        const name = panel.name.trim()
+        if (!name) { setError('Введите название рабочего стола'); return }
+        void runMutation(async () => {
+          const updated = await api<Pick<Desktop, 'id' | 'name'>>('desktops/' + panel.selected + '/name', 'PUT', { name })
+          setData(current => current && { ...current, desktops: current.desktops.map(d => d.id === updated.id ? { ...d, name: updated.name } : d) })
+          setDrawerOpen(true)
+        })
+      }}>
+        <div className="rename-field">
+          <label htmlFor="rename-target">Рабочий стол</label>
+          <select id="rename-target" disabled={busy} value={panel.selected} onChange={e => {
+            const selected = data.desktops.find(d => d.id === Number(e.target.value))!
+            setError('')
+            setPanel({ mode: 'rename-desktop', selected: selected.id, name: selected.name })
+          }}>
+            {data.desktops.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
+          </select>
+        </div>
+        <label>Название
+          <input disabled={busy} value={panel.name} onChange={e => { setError(''); setPanel({ ...panel, name: e.target.value }) }} />
+        </label>
+        {error && <p role="alert">{error}</p>}
+        <div className="dialog-actions">
+          <button type="button" disabled={busy} onClick={() => setDrawerOpen(true)}>Отмена</button>
+          <button className="primary" disabled={busy}>Сохранить</button>
+        </div>
+      </form>
+    </Modal>}
     {panel?.mode === 'delete-desktop' && data && <Modal title="Удалить рабочий стол" pending={busy}
-      close={() => { setError(''); setPanel(null) }}>
+      close={() => setDrawerOpen(true)}>
       <form onSubmit={e => {
         e.preventDefault()
         if (panel.selected !== null) void removeDesktop(panel.selected)
@@ -231,11 +249,11 @@ export function App() {
           </label>)}
         </fieldset>
         <p>Виджеты выбранного стола будут удалены вместе с ним.</p>
-        {data.desktops.length === 1 && <p>Вместо последнего стола появится пустой.</p>}
+        {data.desktops.length === 1 && <p>Последний рабочий стол удалить нельзя.</p>}
         {error && <p role="alert">{error}</p>}
         <div className="dialog-actions">
-          <button type="button" disabled={busy} onClick={() => { setError(''); setPanel(null) }}>Отмена</button>
-          <button className="primary" disabled={busy || !data.desktops.some(d => d.id === panel.selected)}>ОК</button>
+          <button type="button" disabled={busy} onClick={() => setDrawerOpen(true)}>Отмена</button>
+          <button className="primary" disabled={busy || data.desktops.length < 2 || !data.desktops.some(d => d.id === panel.selected)}>ОК</button>
         </div>
       </form>
     </Modal>}

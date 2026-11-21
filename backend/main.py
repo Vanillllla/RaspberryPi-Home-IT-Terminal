@@ -22,6 +22,10 @@ app.include_router(templates_router)
 plugins = discover(app)
 
 
+class DesktopName(BaseModel):
+    name: str
+
+
 class ViewportLayout(BaseModel):
     rows: int | None = Field(default=None, strict=True, ge=1, le=MAX_ROWS)
 
@@ -75,14 +79,26 @@ def create_desktop():
         return {**insert_desktop(conn), "rows": row_count(())}
 
 
+@app.put("/api/desktops/{desktop_id}/name")
+def rename_desktop(desktop_id: int, body: DesktopName):
+    name = body.name.strip()
+    if not name:
+        raise HTTPException(422, "Введите название рабочего стола")
+    with database(write=True) as conn:
+        if not conn.execute("UPDATE desktops SET name=? WHERE id=?", (name, desktop_id)).rowcount:
+            raise HTTPException(404, "Рабочий стол отсутствует")
+        return {"id": desktop_id, "name": name}
+
+
 @app.delete("/api/desktops/{desktop_id}")
 def delete_desktop(desktop_id: int):
     with database(write=True) as conn:
-        conn.execute("DELETE FROM widgets WHERE desktop_id=?", (desktop_id,))
-        if not conn.execute("DELETE FROM desktops WHERE id=?", (desktop_id,)).rowcount:
+        if not conn.execute("SELECT 1 FROM desktops WHERE id=?", (desktop_id,)).fetchone():
             raise HTTPException(404, "Рабочий стол отсутствует")
-        if conn.execute("SELECT id FROM desktops LIMIT 1").fetchone() is None:
-            insert_desktop(conn)
+        if not conn.execute("SELECT 1 FROM desktops WHERE id<>? LIMIT 1", (desktop_id,)).fetchone():
+            raise HTTPException(409, "Последний рабочий стол удалить нельзя")
+        conn.execute("DELETE FROM widgets WHERE desktop_id=?", (desktop_id,))
+        conn.execute("DELETE FROM desktops WHERE id=?", (desktop_id,))
         return read_state(conn)
 
 

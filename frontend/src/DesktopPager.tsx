@@ -70,7 +70,7 @@ export function DesktopPager({ desktops, active, blocked, select, render }: Prop
     settle(offset.current)
   }
 
-  return <div className="pager" onPointerDown={e => {
+  return <div className="pager" inert={blocked} onPointerDown={e => {
     if (blocked || animation.current || !e.isPrimary || e.button !== 0 || swipe.current) return
     if ((e.target as Element).closest('article,button,.moving')) return
     swipe.current = { pointer: e.pointerId, x: e.clientX, y: e.clientY, width: e.currentTarget.clientWidth }
