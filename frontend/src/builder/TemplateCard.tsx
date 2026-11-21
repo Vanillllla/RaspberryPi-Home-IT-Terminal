@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { api } from '../api'
-import type { WidgetInstance } from '../plugin'
+import { WidgetSlider, WidgetSwitch, type WidgetInstance } from '../plugin'
 import { colors, type Action, type Color, type Item, type Inputs, type Outputs, type Template } from './model'
 
 interface ElementProps {
@@ -13,20 +13,23 @@ export function ElementView({ item, inputs = {}, outputs = {}, change }: Element
   const value = inputs[item.id]
   switch (item.kind) {
     case 'button':
-      return <button type="button" onClick={() => change?.(item)}>{item.label}</button>
+      return <button className="widget-button" type="button" onClick={() => change?.(item)}>{item.label}</button>
     case 'switch':
-      return <label className="built-switch"><input type="checkbox" role="switch" checked={Boolean(value ?? item.checked)}
-        onChange={e => change?.(item, e.target.checked)} />{item.label}</label>
+      return <WidgetSwitch label={item.label} checked={Boolean(value ?? item.checked)} onChange={v => change?.(item, v)} />
     case 'slider':
-      return <label className="built-slider">{item.label}<input type="range" min={item.minimum} max={item.maximum}
-        step={item.step} value={Number(value ?? item.initial)} onChange={e => change?.(item, e.target.valueAsNumber)} /></label>
+      return <label className="built-slider">{item.label}
+        <WidgetSlider label={item.label} min={item.minimum} max={item.maximum} step={item.step}
+          value={Number(value ?? item.initial)} onChange={v => change?.(item, v)} />
+      </label>
     case 'indicator': {
       const color = (outputs[item.id] ?? item.color) as Color
       return <span className="built-indicator" role="img" aria-label={item.label + ' — ' + colors[color]} title={item.label}>
-        <i data-color={color} /></span>
+        <i className="widget-status" data-color={color} /></span>
     }
     case 'text':
-      return <span>{outputs[item.id] ?? item.label}</span>
+      return outputs[item.id] === undefined
+        ? <strong>{item.label}</strong>
+        : <span className="widget-output">{outputs[item.id]}</span>
   }
 }
 interface RunResult { outputs?: Outputs; diagnostic?: string; skipped?: boolean }

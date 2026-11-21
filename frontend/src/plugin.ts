@@ -22,3 +22,5 @@ export interface Plugin {
     saveSettings: (settings: WidgetInstance['settings']) => Promise<void>
   }>
 }
+
+export { WidgetSlider, WidgetSwitch } from './WidgetControls'

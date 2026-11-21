@@ -1,0 +1,46 @@
+.widget-button { min-height: 32px; padding: .25rem .5rem; }
+.widget-switch { display: inline-flex; align-items: center; gap: .3rem; min-height: 32px; cursor: pointer; }
+.widget-switch input {
+  appearance: none; display: inline-flex; align-items: center; flex: none; cursor: pointer;
+  width: 2.5rem; height: 1.5rem; margin: 0; border: 1px solid var(--muted); border-radius: 1rem;
+  padding: 0 .1875rem; background: var(--surface); color: var(--muted);
+}
+.widget-switch input::before {
+  content: ""; width: 1rem; height: 1rem; border-radius: 50%; background: currentColor;
+}
+.widget-switch input:checked { justify-content: flex-end; background: var(--accent); color: var(--on-accent); }
+.widget-range {
+  --thumb: 1.5rem;
+  --inset: .25rem;
+  position: relative; display: grid; align-items: center; flex: 1 1 5rem;
+  min-width: min(5rem, 100%); min-height: 44px;
+}
+.widget-slider {
+  position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; padding: 0 var(--inset);
+  appearance: none; opacity: 0; cursor: pointer; touch-action: pan-y;
+}
+.widget-slider::-webkit-slider-thumb { appearance: none; width: var(--thumb); height: var(--thumb); }
+.widget-slider::-moz-range-thumb { width: var(--thumb); height: var(--thumb); border: 0; }
+.widget-slider-track {
+  padding: var(--inset); border-radius: 999px; background: var(--line); pointer-events: none;
+}
+.widget-slider-track::before {
+  content: ""; display: block; position: relative;
+  width: var(--thumb); height: var(--thumb); border-radius: 50%; background: var(--accent);
+  left: calc((100% - var(--thumb)) * var(--position)); transition: left 140ms ease-out;
+}
+.widget-slider:focus-visible + .widget-slider-track { outline: 2px solid var(--focus); outline-offset: 2px; }
+@media (prefers-reduced-motion: reduce) {
+  .widget-slider-track::before { transition: none; }
+}
+@media (forced-colors: active) {
+  .widget-switch input::before { background: ButtonText; }
+  .widget-switch input:checked { background: Highlight; }
+  .widget-switch input:checked::before { background: HighlightText; }
+  .widget-slider-track { outline: 1px solid ButtonText; }
+  .widget-slider-track::before { background: ButtonText; }
+}
+.widget-output { font-weight: 600; }
+.widget-status[data-color="green"] { color: light-dark(#187136, #74d893); }
+.widget-status[data-color="yellow"] { color: light-dark(#786500, #ffdc52); }
+.widget-status[data-color="red"] { color: light-dark(#ba2432, #ff909b); }

@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from 'react'
-import type { Plugin, WidgetProps } from '@terminal/plugin'
+import { WidgetSlider, WidgetSwitch, type Plugin, type WidgetProps } from '@terminal/plugin'
 import './demo.css'
 
 function labelOf({ settings }: WidgetProps['instance']) {
@@ -16,25 +16,19 @@ function Widget({ instance }: WidgetProps) {
   return <div className="demo-widget">
     <div className="demo-row">
       <strong>{labelOf(instance)}</strong>
-      <button onClick={() => setCount(n => n + 1)}>Нажатий: {count}</button>
+      <button className="widget-button" onClick={() => setCount(n => n + 1)}>Нажатий: {count}</button>
     </div>
     <div className="demo-row">
-      <label className="demo-switch">
-        <input type="checkbox" role="switch" checked={enabled} onChange={e => setEnabled(e.target.checked)} />
-        Вкл. / Выкл.
-      </label>
-      <button onClick={() => setCheckedEnabled(enabled)}>Проверить</button>
-      <output data-color={checkedEnabled ? 'красный' : 'зелёный'}>Статус
+      <WidgetSwitch label="Вкл. / Выкл." checked={enabled} onChange={setEnabled} />
+      <button className="widget-button" onClick={() => setCheckedEnabled(enabled)}>Проверить</button>
+      <output className="widget-output widget-status" data-color={checkedEnabled ? 'red' : 'green'}>Статус
         <span className="demo-sr-only"> — {checkedEnabled ? 'красный' : 'зелёный'}</span>
       </output>
     </div>
     <div className="demo-row">
-      <div className="demo-range" data-level={level}>
-        <input className="demo-slider" type="range" min="0" max="2" step="1" value={level}
-          aria-label="Цвет второго статуса" aria-valuetext={levelColor} onChange={e => setLevel(e.target.valueAsNumber)} />
-        <span className="demo-slider-track" aria-hidden="true" />
-      </div>
-      <output data-color={levelColor}>Статус 2<span className="demo-sr-only"> — {levelColor}</span></output>
+      <WidgetSlider label="Цвет второго статуса" min={0} max={2} step={1} value={level}
+        valueText={levelColor} onChange={setLevel} />
+      <output className="widget-output widget-status" data-color={['green', 'yellow', 'red'][level]}>Статус 2<span className="demo-sr-only"> — {levelColor}</span></output>
     </div>
   </div>
 }
