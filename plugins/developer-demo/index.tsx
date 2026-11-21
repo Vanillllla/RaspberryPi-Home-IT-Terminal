@@ -8,9 +8,31 @@ function labelOf({ settings }: WidgetProps['instance']) {
 
 function Widget({ instance }: WidgetProps) {
   const [count, setCount] = useState(0)
+  const [enabled, setEnabled] = useState(false)
+  const [checkedEnabled, setCheckedEnabled] = useState(false)
+  const [level, setLevel] = useState(0)
+  const levelColor = ['зелёный', 'жёлтый', 'красный'][level]
+
   return <div className="demo-widget">
-    <strong>{labelOf(instance)}</strong>
-    <button onClick={() => setCount(n => n + 1)}>Нажатий: {count}</button>
+    <div className="demo-row">
+      <strong>{labelOf(instance)}</strong>
+      <button onClick={() => setCount(n => n + 1)}>Нажатий: {count}</button>
+    </div>
+    <div className="demo-row">
+      <label className="demo-switch">
+        <input type="checkbox" role="switch" checked={enabled} onChange={e => setEnabled(e.target.checked)} />
+        Вкл. / Выкл.
+      </label>
+      <button onClick={() => setCheckedEnabled(enabled)}>Проверить</button>
+      <output data-color={checkedEnabled ? 'красный' : 'зелёный'}>Статус
+        <span className="demo-sr-only"> — {checkedEnabled ? 'красный' : 'зелёный'}</span>
+      </output>
+    </div>
+    <div className="demo-row">
+      <input className="demo-slider" type="range" min="0" max="2" step="1" value={level}
+        aria-label="Цвет второго статуса" aria-valuetext={levelColor} onChange={e => setLevel(e.target.valueAsNumber)} />
+      <output data-color={levelColor}>Статус 2<span className="demo-sr-only"> — {levelColor}</span></output>
+    </div>
   </div>
 }
 

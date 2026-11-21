@@ -1,5 +1,15 @@
 .demo-form, .demo-form label { display: grid; gap: .6rem; }
-.demo-widget { display: flex; gap: .6rem; flex-wrap: wrap; align-items: center; justify-content: space-between; margin-bottom: .5rem; }
+.demo-widget { display: grid; gap: .15rem; margin-bottom: .4rem; }
+.demo-row { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: .25rem; }
+.demo-row button { min-height: 32px; padding: .25rem .5rem; }
+.demo-switch { display: inline-flex; align-items: center; gap: .3rem; min-height: 32px; cursor: pointer; }
+.demo-switch input { width: 1.1rem; height: 1.1rem; margin: 0; }
+.demo-slider { flex: 1 1 5rem; min-width: 0; height: 32px; margin: 0; touch-action: pan-y; }
+.demo-row output { font-weight: 600; }
+.demo-row [data-color="зелёный"] { color: light-dark(#187136, #74d893); }
+.demo-row [data-color="жёлтый"] { color: light-dark(#786500, #ffdc52); }
+.demo-row [data-color="красный"] { color: light-dark(#ba2432, #ff909b); }
+.demo-sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 .demo-form input { width: 100%; min-height: 44px; padding: .5rem .7rem; font: inherit; border: 1px solid var(--line); border-radius: 8px; }
 .demo-form button { justify-self: start; }
 .demo-form p { margin: 0; }
