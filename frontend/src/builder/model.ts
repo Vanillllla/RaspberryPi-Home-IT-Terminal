@@ -1,0 +1,41 @@
+export const kinds = {
+  text: 'Текст', button: 'Кнопка', switch: 'Переключатель', slider: 'Слайдер', indicator: 'Индикатор состояния',
+}
+export const actionKinds = {
+  time: 'Текущее время', reach: 'Проверка доступности', http: 'HTTP GET', python: 'Python',
+}
+export const colors = { green: 'Зелёный', yellow: 'Жёлтый', red: 'Красный' }
+export type Kind = keyof typeof kinds
+export type Color = keyof typeof colors
+export type ActionKind = keyof typeof actionKinds
+export type Inputs = Record<string, number | boolean>
+export type Outputs = Record<string, string>
+
+export interface Item {
+  id: string; kind: Kind; label: string; command: string; checked: boolean; color: Color
+  minimum: number; maximum: number; step: number; initial: number
+}
+export interface Action {
+  id: string; kind: ActionKind; name: string; trigger: 'command' | 'timer'; command: string; interval: number
+  host: string; port: number | null; url: string; path: string; code: string
+  targets: { element: string; field: string }[]
+}
+export interface Draft { name: string; rows: Item[][]; actions: Action[]; revision: number }
+export interface Template extends Draft { id: string }
+
+export function randomKey(bytes = 16) {
+  // getRandomValues also works on a LAN connection without HTTPS.
+  return Array.from(crypto.getRandomValues(new Uint8Array(bytes)), b => b.toString(16).padStart(2, '0')).join('')
+}
+export function newItem(kind: Kind): Item {
+  return { id: 'e' + randomKey(5), kind, label: kinds[kind], command: kind === 'button' ? 'refresh' : '', checked: false,
+    minimum: 0, maximum: 100, step: 1, initial: 0, color: 'green' }
+}
+export function newAction(kind: ActionKind): Action {
+  return { id: 'a' + randomKey(5), kind, name: actionKinds[kind], trigger: kind === 'time' ? 'timer' : 'command',
+    command: 'refresh', interval: 1, host: '', port: null, url: '', path: '',
+    code: 'def run(context):\n    return {"text": "Доступен", "color": "green"}', targets: [] }
+}
+export function emptyDraft(): Draft {
+  return { name: '', rows: [[]], actions: [], revision: 0 }
+}

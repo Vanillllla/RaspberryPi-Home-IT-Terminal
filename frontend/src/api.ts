@@ -1,3 +1,4 @@
+import type { Template } from './builder/model'
 import type { WidgetInstance } from './plugin'
 
 export interface Desktop { id: number; name: string; rows: number }
@@ -12,6 +13,7 @@ export interface State {
   columns: number
   desktops: Desktop[]
   widgets: WidgetInstance[]
+  templates: Template[]
   plugins: Manifest[]
 }
 
@@ -23,6 +25,10 @@ export async function api<T>(path: string, method = 'GET', body?: unknown): Prom
   })
   if (!response.ok) {
     const error = await response.json().catch(() => ({}))
+    if (Array.isArray(error.detail)) {
+      const issue = error.detail[0]
+      throw new Error([issue?.loc?.slice(1).join('.'), issue?.msg].filter(Boolean).join(' · '))
+    }
     throw new Error(typeof error.detail === 'string' ? error.detail : 'Не удалось выполнить запрос')
   }
   return response.json()

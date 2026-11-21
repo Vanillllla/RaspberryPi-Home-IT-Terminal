@@ -1,5 +1,8 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
 import { api, type Desktop, type State } from './api'
+import { Builder } from './builder/Builder'
+import { TemplateCard } from './builder/TemplateCard'
+import type { Inputs, Outputs } from './builder/model'
 import { DesktopPager } from './DesktopPager'
 import { placementError } from './layout'
 import { AlignmentSettings, contentAlignment } from './AlignmentSettings'
@@ -21,7 +24,7 @@ function Modal({ title, close, children, pending = false }: { title: string; clo
 type Theme = 'light' | 'dark'
 const themeKey = 'pi-terminal-theme'
 
-type Panel = { mode: 'add' | 'panel-settings' } | { mode: 'delete-desktop'; selected: number | null } | { mode: 'actions' | 'Settings' | 'Details'; id: number }
+type Panel = { mode: 'add' | 'panel-settings' | 'builder' } | { mode: 'delete-desktop'; selected: number | null } | { mode: 'actions' | 'Settings' | 'Details'; id: number }
 
 export function App() {
   const [data, setData] = useState<State | null>(null)
@@ -46,6 +49,25 @@ export function App() {
   const reload = useCallback(async () => setData(await api<State>('state')), [])
   useEffect(() => { reload().catch(e => setError(e.message)) }, [reload])
   const desktop = data?.desktops.find(d => d.id === active) ?? data?.desktops[0]
+
+  const catalogVersion = data?.templates?.reduce((sum, t) => sum + t.revision, 0)
+  useEffect(() => {
+    if (catalogVersion === undefined || panel?.mode === 'builder') return
+    let disposed = false
+    let checking = false
+    async function check() {
+      if (document.hidden || checking) return
+      checking = true
+      try {
+        const version = await api<number>('templates/version')
+        if (!disposed && version !== catalogVersion) await reload()
+      } catch { /* Retry on the next tick when the server is available again. */ }
+      finally { checking = false }
+    }
+    const timer = window.setInterval(check, 5000)
+    document.addEventListener('visibilitychange', check)
+    return () => { disposed = true; clearInterval(timer); document.removeEventListener('visibilitychange', check) }
+  }, [catalogVersion, panel?.mode, reload])
 
   const activeButton = useRef<HTMLButtonElement>(null)
   useLayoutEffect(() => {
@@ -126,11 +148,22 @@ export function App() {
     }} />
   }
 
+  const patchRuntime = useCallback((id: number, revision: number, group: 'inputs' | 'outputs', values: Inputs | Outputs) => {
+    setData(current => {
+      const widget = current?.widgets.find(w => w.id === id)
+      if (!current || !widget || !current.templates.some(t => t.id === widget.plugin_id && t.revision === revision)) return current
+      const settings = { ...widget.settings, [group]: { ...(widget.settings[group] as object), ...values } }
+      return { ...current, widgets: current.widgets.map(w => w.id === id ? { ...w, settings } : w) }
+    })
+  }, [])
+
   function renderCard(widget: WidgetInstance) {
     const capabilities = data?.plugins.find(p => p.id === widget.plugin_id)?.capabilities ?? []
+    const template = data?.templates.find(t => t.id === widget.plugin_id)
     const alignment = contentAlignment(widget.appearance)
     return <div className="widget-content" data-horizontal={alignment.horizontalAlign} data-vertical={alignment.verticalAlign}>
-      {view(widget, 'Widget')}
+      {template ? <TemplateCard key={template.revision} template={template} instance={widget}
+        active={desktop?.id === widget.desktop_id && panel?.mode !== 'builder'} patch={patchRuntime} /> : view(widget, 'Widget')}
       {capabilities.includes('details') && <button onClick={() => setPanel({ mode: 'Details', id: widget.id })}>
         Подробнее
       </button>}
@@ -168,12 +201,15 @@ export function App() {
             </button>
           </div>
           <h1>{desktop.name}</h1>
-          <button className="primary add" onClick={() => setPanel({ mode: 'add' })}>+ Виджет</button>
+          <div className="widget-buttons">
+            <button disabled={busy} onClick={() => setPanel({ mode: 'builder' })}>Создать виджет</button>
+            <button className="primary add" onClick={() => setPanel({ mode: 'add' })}>+ Виджет</button>
+          </div>
         </div>
         <DesktopPager desktops={data.desktops} active={desktop} select={select} blocked={panel !== null}
           render={(page, interactive) => (
             <Grid columns={data.columns} maxRows={data.max_rows} reportRows={page.id === desktop.id ? setRows : undefined} interactive={interactive && !busy} widgets={data.widgets.filter(w => w.desktop_id === page.id)}
-              title={w => data.plugins.find(p => p.id === w.plugin_id)?.name ?? w.plugin_id}
+              title={w => data.templates.find(t => t.id === w.plugin_id)?.name ?? data.plugins.find(p => p.id === w.plugin_id)?.name ?? w.plugin_id}
               openActions={id => setPanel({ mode: 'actions', id })}
               move={(id, slot, rows) => mutate(() => api('widgets/' + id + '/position', 'PUT', { slot, rows }))}
               render={renderCard} />
@@ -212,9 +248,21 @@ export function App() {
         </label>)}
       </fieldset>
     </Modal>}
+    {panel?.mode === 'builder' && data && <Modal title="Конструктор виджетов" pending={busy} close={() => setPanel(null)}>
+      <Builder templates={data.templates} busy={busy} setBusy={setBusy} saved={async template => {
+        try {
+          await reload()
+        } catch (e) {
+          // The write already succeeded. Keep the saved template available if the refresh fails.
+          setData(current => current && { ...current, templates: [...current.templates.filter(t => t.id !== template.id), template] })
+          setError(e instanceof Error ? e.message : 'Не удалось обновить рабочий стол')
+        }
+        setPanel(null)
+      }} />
+    </Modal>}
     {panel?.mode === 'add' && data && desktop && <Modal title="Добавить виджет" close={() => { setError(''); setPanel(null) }}>
-      {data.plugins.length === 0 && <p>Доступных плагинов пока нет.</p>}
-      {data.plugins.map(p => <button className="choice" key={p.id} disabled={busy}
+      {data.plugins.length === 0 && data.templates.length === 0 && <p>Доступных плагинов пока нет.</p>}
+      {[...data.plugins, ...data.templates.map(t => ({ id: t.id, name: t.name, description: 'Пользовательский шаблон' }))].map(p => <button className="choice" key={p.id} disabled={busy}
         onClick={() => void mutate(async () => {
           await api('desktops/' + desktop.id + '/widgets', 'POST', { plugin_id: p.id, rows })
           setPanel(null)

@@ -7,6 +7,7 @@ from pydantic import BaseModel, Field
 
 from .discovery import discover
 from .layout import COLUMNS, DEFAULT_WIDTH, DEFAULT_HEIGHT, MAX_ROWS, Layout, row_count
+from .templates import router as templates_router, templates
 from .storage import database, initialize, insert_desktop, instance
 
 
@@ -17,6 +18,7 @@ async def lifespan(app):
 
 
 app = FastAPI(title="Pi Terminal", lifespan=lifespan)
+app.include_router(templates_router)
 plugins = discover(app)
 
 
@@ -57,6 +59,7 @@ def read_state(conn):
         "desktops": desktops,
         "widgets": widgets,
         "plugins": list(plugins.values()),
+        "templates": templates(conn),
     }
 
 
@@ -85,9 +88,9 @@ def delete_desktop(desktop_id: int):
 
 @app.post("/api/desktops/{desktop_id}/widgets", status_code=201)
 def create_widget(desktop_id: int, body: AddWidget):
-    if body.plugin_id not in plugins:
-        raise HTTPException(404, "Плагин недоступен")
     with database(write=True) as conn:
+        if body.plugin_id not in plugins and not conn.execute("SELECT 1 FROM templates WHERE id=?", (body.plugin_id,)).fetchone():
+            raise HTTPException(404, "Плагин или шаблон недоступен")
         if not conn.execute("SELECT id FROM desktops WHERE id=?", (desktop_id,)).fetchone():
             raise HTTPException(404, "Рабочий стол отсутствует")
         layout = Layout(conn, desktop_id, rows=body.rows)
