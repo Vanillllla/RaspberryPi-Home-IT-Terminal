@@ -19,9 +19,18 @@ interface Press {
   gripX: number
   gripY: number
   tile: HTMLElement
-  timer: number
+  fromHandle: boolean
+  timer?: number
   dragging: boolean
 }
+
+const controlSelector = [
+  'button', 'a[href]', 'input', 'textarea', 'select', 'label', 'summary', '[tabindex]',
+  '[contenteditable]:not([contenteditable="false"])', '[draggable="true"]', 'audio[controls]', 'video[controls]',
+  ...['button', 'link', 'checkbox', 'radio', 'switch', 'slider', 'spinbutton', 'textbox',
+    'combobox', 'listbox', 'option', 'menuitem', 'menuitemcheckbox', 'menuitemradio', 'tab']
+    .map(role => '[role~="' + role + '"]'),
+].join(',')
 
 export function Grid({ widgets, columns, rows, interactive, title, render, move }: Props) {
   const board = useRef<HTMLDivElement>(null)
@@ -54,8 +63,18 @@ export function Grid({ widgets, columns, rows, interactive, title, render, move 
         reset()
       }
     }
+    // Keep native scrolling until a hold claims this touch sequence.
+    const surface = board.current!
+    function touchMove(e: TouchEvent) {
+      if (press.current?.dragging && e.cancelable) e.preventDefault()
+    }
+    surface.addEventListener('touchmove', touchMove, { passive: false })
     window.addEventListener('keydown', escape)
-    return () => { window.removeEventListener('keydown', escape); clearTimeout(press.current?.timer) }
+    return () => {
+      surface.removeEventListener('touchmove', touchMove)
+      window.removeEventListener('keydown', escape)
+      clearTimeout(press.current?.timer)
+    }
   }, [interactive])
 
   function fits(w: WidgetInstance, x: number, y: number) {
@@ -92,28 +111,60 @@ export function Grid({ widgets, columns, rows, interactive, title, render, move 
     reset()
   }
 
-  function start(e: PointerEvent<HTMLButtonElement>, w: WidgetInstance) {
-    if (!interactive || pending || !e.isPrimary || e.button !== 0 || press.current) return
-    e.currentTarget.setPointerCapture(e.pointerId)
+  function lift(grip: Press, w: WidgetInstance) {
+    grip.dragging = true
+    suppressClick.current = true
+    setPicked(null)
+    setDragging(w.id)
+    setTarget(w.slot)
+  }
+
+  function start(e: PointerEvent<HTMLElement>, w: WidgetInstance) {
+    if (!e.isPrimary || e.button !== 0 || press.current) return
     suppressClick.current = false
-    const tile = e.currentTarget.closest<HTMLElement>('.tile')!
+    if (!interactive || pending || !(e.target instanceof Element)) return
+    const origin = e.target
+    if (!e.currentTarget.contains(origin)) return
+    const fromHandle = e.currentTarget.querySelector('.handle')!.contains(origin)
+    if (!fromHandle && origin.closest(controlSelector)) return
+
+    // Capturing on the original target preserves its short-click action.
+    origin.setPointerCapture(e.pointerId)
+    const tile = e.currentTarget.parentElement!
     const rect = tile.getBoundingClientRect()
     const bounds = board.current!.getBoundingClientRect()
     const gripX = e.clientX - rect.left, gripY = e.clientY - rect.top
     tile.style.transformOrigin = gripX + 'px ' + gripY + 'px'
     tile.style.setProperty('--free-x', rect.left - bounds.left + 'px')
     tile.style.setProperty('--free-y', rect.top - bounds.top + 'px')
-    press.current = {
-      pointer: e.pointerId, startX: e.clientX, startY: e.clientY, gripX, gripY, tile, dragging: false,
-      timer: window.setTimeout(() => {
-        if (!press.current) return
-        press.current.dragging = true
-        suppressClick.current = true
-        setPicked(null)
-        setDragging(w.id)
-        setTarget(w.slot)
-      }, 350),
+    const grip: Press = {
+      pointer: e.pointerId, startX: e.clientX, startY: e.clientY, gripX, gripY, tile, fromHandle, dragging: false,
     }
+    press.current = grip
+    if (!fromHandle) grip.timer = window.setTimeout(() => lift(grip, w), 350)
+  }
+
+  function crossedThreshold(e: PointerEvent, grip: Press) {
+    return Math.hypot(e.clientX - grip.startX, e.clientY - grip.startY) >= (grip.fromHandle ? 5 : 10)
+  }
+
+  function pointerMove(e: PointerEvent, w: WidgetInstance) {
+    const grip = press.current
+    if (!grip || grip.pointer !== e.pointerId) return
+    if (!grip.dragging) {
+      if (!crossedThreshold(e, grip)) return
+      if (!grip.fromHandle) return cancel(e)
+      lift(grip, w)
+    }
+    setTarget(follow(e, w, grip))
+  }
+
+  function pointerUp(e: PointerEvent, w: WidgetInstance) {
+    const grip = press.current
+    if (!grip || grip.pointer !== e.pointerId) return
+    if (grip.dragging) void finish(w, follow(e, w, grip))
+    else if (crossedThreshold(e, grip)) cancel(e)
+    else { clearTimeout(grip.timer); press.current = null }
   }
 
   function geometry(slot: number, width: number, height: number): CSSProperties {
@@ -139,32 +190,27 @@ export function Grid({ widgets, columns, rows, interactive, title, render, move 
         {widgets.map(w => <div key={w.id} data-slot={w.slot} data-widget={w.id}
           className={'tile' + (dragging === w.id ? ' lifted' : '') + (selected?.id === w.id ? ' selected' : '')}
           style={geometry(pending?.id === w.id ? pending.slot : w.slot, w.width, w.height)}>
-          <article>
-            <button className="handle" disabled={!interactive || pending !== null} aria-label={'Переместить: ' + title(w)}
-              aria-pressed={selected?.id === w.id} title="Удерживайте и перетащите или нажмите и выберите ячейку"
-              onPointerDown={e => start(e, w)}
-              onPointerMove={e => {
-                const grip = press.current
-                if (!grip || grip.pointer !== e.pointerId) return
-                if (grip.dragging) setTarget(follow(e, w, grip))
-                else if (Math.hypot(e.clientX - grip.startX, e.clientY - grip.startY) > 10) cancel(e)
-              }}
-              onPointerCancel={cancel} onLostPointerCapture={cancel}
-              onPointerUp={e => {
-                const grip = press.current
-                if (!grip || grip.pointer !== e.pointerId) return
-                if (grip.dragging) void finish(w, follow(e, w, grip))
-                else if (Math.hypot(e.clientX - grip.startX, e.clientY - grip.startY) > 10) cancel(e)
-                else { clearTimeout(grip.timer); press.current = null }
-              }}
-              onClick={e => {
-                if (interactive && (e.detail === 0 || !suppressClick.current)) {
+          <article onPointerDownCapture={e => start(e, w)} onPointerMove={e => pointerMove(e, w)}
+            onPointerUp={e => pointerUp(e, w)} onPointerCancel={cancel} onLostPointerCapture={cancel}
+            onContextMenu={e => { if (press.current?.dragging) e.preventDefault() }}
+            onClickCapture={e => {
+              if (e.detail !== 0 && suppressClick.current) {
+                e.preventDefault()
+                e.stopPropagation()
+              }
+            }}>
+            <div className="card-heading">
+              <button className="handle" disabled={!interactive || pending !== null}
+                aria-label={'Переместить: ' + title(w)} aria-pressed={selected?.id === w.id}
+                title="Потяните для переноса или нажмите и выберите ячейку"
+                onClick={() => {
                   setPicked(picked === w.id ? null : w.id)
                   setTarget(null)
-                }
-              }}>
-              <span className="grip" aria-hidden="true">⠿</span><span>{title(w)}</span>
-            </button>
+                }}>
+                <span className="grip" aria-hidden="true">⠿</span>
+              </button>
+              <span className="card-title">{title(w)}</span>
+            </div>
             {render(w)}
           </article>
         </div>)}
