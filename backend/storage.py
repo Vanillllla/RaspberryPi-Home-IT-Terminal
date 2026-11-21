@@ -35,6 +35,14 @@ def initialize():
             appearance TEXT NOT NULL DEFAULT '{}',
             UNIQUE(desktop_id, slot)
         )""")
+        if "width" not in {column["name"] for column in conn.execute("PRAGMA table_info(widgets)")}:
+            conn.execute("ALTER TABLE widgets ADD COLUMN width INTEGER NOT NULL DEFAULT 4 CHECK(width > 0)")
+            conn.execute("ALTER TABLE widgets ADD COLUMN height INTEGER NOT NULL DEFAULT 2 CHECK(height > 0)")
+            # Descending order vacates larger old slots before a migrated row can claim them.
+            old = conn.execute("SELECT id, slot FROM widgets ORDER BY slot DESC").fetchall()
+            for row in old:
+                y, x = divmod(row["slot"], 3)
+                conn.execute("UPDATE widgets SET slot=? WHERE id=?", (24 * y + 4 * x, row["id"]))
         # Keep instance IDs stable across deletion, including for pre-existing databases.
         conn.execute("CREATE TABLE IF NOT EXISTS widget_sequence (last_id INTEGER NOT NULL)")
         if conn.execute("SELECT last_id FROM widget_sequence").fetchone() is None:

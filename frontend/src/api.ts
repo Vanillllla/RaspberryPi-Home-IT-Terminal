@@ -1,6 +1,6 @@
 import type { WidgetInstance } from './plugin'
 
-export interface Desktop { id: number; name: string }
+export interface Desktop { id: number; name: string; rows: number }
 export interface Manifest {
   id: string
   name: string
@@ -8,6 +8,7 @@ export interface Manifest {
   capabilities: string[]
 }
 export interface State {
+  columns: number
   desktops: Desktop[]
   widgets: WidgetInstance[]
   plugins: Manifest[]

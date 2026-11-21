@@ -1,4 +1,4 @@
-.clock { font-size: 1rem; line-height: 1.55; }
+.clock { font-size: 1rem; line-height: 1.35; }
 .clock time { display: block; font-size: clamp(2rem, 16cqw, 3.3rem); font-weight: 700; line-height: 1.1; letter-spacing: -.045em; font-variant-numeric: tabular-nums; }
-.clock-day { margin-top: .65rem; }
+.clock-day { margin-top: .35rem; }
 .clock-day::first-letter { text-transform: uppercase; }

@@ -25,13 +25,9 @@ nav button { white-space: nowrap; }
 h1, h2 { margin: 0; line-height: 1.15; }
 h1 { font-size: clamp(1.5rem, 2.4vw, 2.3rem); }
 .add { justify-self: end; padding-inline: 1.4rem; }
-.board { display: grid; align-content: start; grid-auto-rows: minmax(178px,auto); gap: 16px; min-height: max(400px, calc(100dvh - 170px)); padding: clamp(12px, 1.6vw, 24px); border: 1px solid var(--line); border-radius: var(--radius); background: radial-gradient(circle,#c3cee1 1px,transparent 1.4px) 0 0 / 28px 28px, var(--canvas); touch-action: pan-y pinch-zoom; }
-.cell { min-width: 0; }
-article { position: relative; height: 100%; container-type: inline-size; overflow-wrap: anywhere; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: .5rem clamp(14px, 1.5vw, 24px) 1rem; }
+article { overflow: auto; position: relative; height: 100%; container-type: inline-size; overflow-wrap: anywhere; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: .2rem clamp(8px, 1vw, 16px) .4rem; }
 .handle { display: flex; align-items: center; padding: 0; border: 0; background: transparent; gap: .65rem; cursor: grab; touch-action: none; user-select: none; }
 .grip { color: #7788a4; font-size: 1.4rem; }
-.selected, .target { outline: 2px solid var(--accent); border-radius: var(--radius); }
-.drop { width: 100%; height: 100%; border: 1px dashed #8d9dbe; background: #ffffff88; }
 dialog { width: min(450px,94vw); max-height: 90dvh; border: 1px solid var(--line); border-radius: var(--radius); padding: 1.4rem; color: inherit; }
 dialog:has(.details-view) { width: 92vw; height: 90dvh; }
 dialog::backdrop { background: #15243f66; }
@@ -43,12 +39,43 @@ dialog::backdrop { background: #15243f66; }
   .toolbar { grid-template-columns: 1fr auto; gap: .6rem; }
   nav { grid-column: 1 / -1; }
 }
-.pager { overflow: clip; touch-action: pan-y pinch-zoom; border-radius: var(--radius); }
+.pager { overflow: clip; border-radius: var(--radius); }
 .page-track { position: relative; }
 .page { width: 100%; min-width: 0; }
 .page.adjacent { position: absolute; top: 0; pointer-events: none; }
 article .handle { max-width: calc(100% - 44px); }
 .widget-actions { position: absolute; top: 8px; right: 8px; width: 44px; padding: 0; line-height: 1; font-size: 1.4rem; background: transparent; border-color: transparent; }
-.cell.target .drop { border: 2px solid var(--accent); background: #e3e9ff; }
 
 .remove-widget { color: #8a241c; }
+
+.board-scroll { overflow-x: auto; border-radius: var(--radius); background: var(--canvas); }
+.board { position: relative; overflow: clip; container-type: inline-size; width: 100%; min-width: 720px;
+  background-image: linear-gradient(to right, var(--line) 1px, transparent 1px),
+    linear-gradient(to bottom, var(--line) 1px, transparent 1px); }
+.grid-surface { position: absolute; inset: 0; touch-action: pan-y pinch-zoom; }
+.tile, .grid-target, .drop { position: absolute; top: 0; left: 0; translate: var(--x) var(--y); }
+.tile { padding: 3px; transition: translate 180ms ease-out, scale 150ms ease-out; }
+.tile:focus-within, .tile.selected { z-index: 2; }
+.tile.selected article { border-color: var(--accent); }
+.tile.lifted { z-index: 4; translate: var(--free-x) var(--free-y); scale: 1.05; transition: scale 150ms ease-out; }
+.tile.lifted article { box-shadow: 0 9px 20px #15243f40; }
+.tile.lifted .handle { cursor: grabbing; }
+.grid-target { z-index: 3; pointer-events: none; border: 2px dashed var(--accent); background: #5369dc22; }
+.drop { z-index: 3; padding: 0; border: 1px dashed #8d9dbe; background: #ffffff90; color: var(--navy); }
+.grid-scroll-controls { display: none; }
+@media (max-width: 750px) {
+  .grid-scroll-controls { display: flex; align-items: center; justify-content: center; gap: .75rem; padding-top: .3rem; }
+}
+@container (max-width: 112px) {
+  .handle span:last-child { display: none; }
+  article .handle { max-width: none; width: 20px; }
+  .widget-actions { width: 28px; right: 0; top: 2px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .tile, .tile.lifted { transition: none; }
+}
+.size-settings { display: grid; gap: .6rem; }
+.size-settings h3, .size-settings p { margin: 0; }
+.size-settings label { display: flex; align-items: center; gap: .6rem; justify-content: space-between; }
+.size-settings input { width: 5rem; min-height: 44px; font: inherit; border: 1px solid var(--line); border-radius: 8px; padding: .5rem; }
+.size-settings button { justify-self: start; }

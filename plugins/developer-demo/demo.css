@@ -1,5 +1,5 @@
-.demo-widget, .demo-form, .demo-form label { display: grid; gap: .6rem; }
-.demo-widget { justify-items: start; margin-bottom: .5rem; }
+.demo-form, .demo-form label { display: grid; gap: .6rem; }
+.demo-widget { display: flex; gap: .6rem; flex-wrap: wrap; align-items: center; justify-content: space-between; margin-bottom: .5rem; }
 .demo-form input { width: 100%; min-height: 44px; padding: .5rem .7rem; font: inherit; border: 1px solid var(--line); border-radius: 8px; }
 .demo-form button { justify-self: start; }
 .demo-form p { margin: 0; }

@@ -5,6 +5,7 @@ from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field
 
 from .discovery import discover
+from .layout import COLUMNS, DEFAULT_WIDTH, DEFAULT_HEIGHT, MAX_ROWS, Layout, row_count
 from .storage import database, initialize, instance
 
 
@@ -23,7 +24,12 @@ class AddWidget(BaseModel):
 
 
 class MoveWidget(BaseModel):
-    slot: int = Field(ge=0, le=4095)
+    slot: int = Field(strict=True, ge=0, lt=COLUMNS * MAX_ROWS)
+
+
+class WidgetSize(BaseModel):
+    width: int = Field(strict=True, gt=0)
+    height: int = Field(strict=True, gt=0)
 
 
 class Settings(BaseModel):
@@ -33,9 +39,14 @@ class Settings(BaseModel):
 @app.get("/api/state")
 def state():
     with database() as conn:
+        widgets = [instance(row) for row in conn.execute("SELECT * FROM widgets ORDER BY id")]
+        desktops = [dict(row) for row in conn.execute("SELECT * FROM desktops ORDER BY id")]
+        for desktop in desktops:
+            desktop["rows"] = row_count(w for w in widgets if w["desktop_id"] == desktop["id"])
         return {
-            "desktops": [dict(row) for row in conn.execute("SELECT * FROM desktops ORDER BY id")],
-            "widgets": [instance(row) for row in conn.execute("SELECT * FROM widgets ORDER BY id")],
+            "columns": COLUMNS,
+            "desktops": desktops,
+            "widgets": widgets,
             "plugins": list(plugins.values()),
         }
 
@@ -46,7 +57,7 @@ def create_desktop():
         number = conn.execute("SELECT MAX(id) + 1 FROM desktops").fetchone()[0]
         name = f"Рабочий стол {number}"
         conn.execute("INSERT INTO desktops VALUES (?, ?)", (number, name))
-        return {"id": number, "name": name}
+        return {"id": number, "name": name, "rows": row_count(())}
 
 
 @app.post("/api/desktops/{desktop_id}/widgets", status_code=201)
@@ -56,10 +67,11 @@ def create_widget(desktop_id: int, body: AddWidget):
     with database(write=True) as conn:
         if not conn.execute("SELECT id FROM desktops WHERE id=?", (desktop_id,)).fetchone():
             raise HTTPException(404, "Рабочий стол отсутствует")
-        occupied = {row[0] for row in conn.execute("SELECT slot FROM widgets WHERE desktop_id=?", (desktop_id,))}
-        slot = next(i for i in range(len(occupied) + 1) if i not in occupied)
-        if slot > 4095:
-            raise HTTPException(409, "Нет свободных ячеек")
+        layout = Layout(conn, desktop_id)
+        slot = next((s for s in range(layout.rows * COLUMNS)
+                     if not layout.conflict(s, DEFAULT_WIDTH, DEFAULT_HEIGHT)), None)
+        if slot is None:
+            raise HTTPException(409, "Нет свободного места для виджета")
         widget_id = conn.execute("UPDATE widget_sequence SET last_id=last_id+1 RETURNING last_id").fetchone()[0]
         row = conn.execute(
             "INSERT INTO widgets(id, desktop_id, plugin_id, slot) VALUES (?, ?, ?, ?) RETURNING *",
@@ -68,17 +80,28 @@ def create_widget(desktop_id: int, body: AddWidget):
         return instance(row)
 
 
+def update_layout(widget_id, *, slot=None, size=None):
+    with database(write=True) as conn:
+        w = conn.execute("SELECT * FROM widgets WHERE id=?", (widget_id,)).fetchone()
+        if w is None:
+            raise HTTPException(404, "Экземпляр отсутствует")
+        slot = w["slot"] if slot is None else slot
+        width, height = (size.width, size.height) if size else (w["width"], w["height"])
+        reason = Layout(conn, w["desktop_id"], exclude=widget_id).conflict(slot, width, height)
+        if reason:
+            raise HTTPException(409, reason)
+        conn.execute("UPDATE widgets SET slot=?, width=?, height=? WHERE id=?", (slot, width, height, widget_id))
+        return {"slot": slot, "width": width, "height": height}
+
+
 @app.put("/api/widgets/{widget_id}/position")
 def move_widget(widget_id: int, body: MoveWidget):
-    with database(write=True) as conn:
-        widget = conn.execute("SELECT desktop_id FROM widgets WHERE id=?", (widget_id,)).fetchone()
-        if widget is None:
-            raise HTTPException(404, "Экземпляр отсутствует")
-        if conn.execute("SELECT id FROM widgets WHERE desktop_id=? AND slot=? AND id<>?",
-                        (widget[0], body.slot, widget_id)).fetchone():
-            raise HTTPException(409, "Ячейка занята")
-        conn.execute("UPDATE widgets SET slot=? WHERE id=?", (body.slot, widget_id))
-    return {"slot": body.slot}
+    return update_layout(widget_id, slot=body.slot)
+
+
+@app.put("/api/widgets/{widget_id}/size")
+def resize_widget(widget_id: int, body: WidgetSize):
+    return update_layout(widget_id, size=body)
 
 
 @app.put("/api/widgets/{widget_id}/settings")

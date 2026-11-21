@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
 import { api, type Desktop, type State } from './api'
 import { DesktopPager } from './DesktopPager'
+import { placementError } from './layout'
+import { SizeSettings } from './SizeSettings'
 import { Grid } from './Grid'
 import { PluginView } from './PluginView'
 import type { WidgetInstance } from './plugin'
@@ -122,9 +124,9 @@ export function App() {
         </div>
         <DesktopPager desktops={data.desktops} active={desktop} select={select} blocked={panel !== null}
           render={(page, interactive) => (
-            <Grid interactive={interactive && !busy} widgets={data.widgets.filter(w => w.desktop_id === page.id)}
+            <Grid columns={data.columns} rows={page.rows} interactive={interactive && !busy} widgets={data.widgets.filter(w => w.desktop_id === page.id)}
               title={w => data.plugins.find(p => p.id === w.plugin_id)?.name ?? w.plugin_id}
-              move={(id, slot) => void mutate(() => api('widgets/' + id + '/position', 'PUT', { slot }))}
+              move={(id, slot) => mutate(() => api('widgets/' + id + '/position', 'PUT', { slot }))}
               render={renderCard} />
           )} />
       </> : !error && <p>Загрузка рабочего стола…</p>}
@@ -139,14 +141,24 @@ export function App() {
       {error && <p role="alert">{error}</p>}
     </Modal>}
     {opened && panel.mode === 'actions' && <Modal title="Действия с виджетом" close={() => setPanel(null)}>
-      {data?.plugins.find(p => p.id === opened.plugin_id)?.capabilities.includes('settings') &&
-        <button className="choice" onClick={() => setPanel({ mode: 'Settings', id: opened.id })}>Настройки</button>}
+      <button className="choice" onClick={() => setPanel({ mode: 'Settings', id: opened.id })}>Настройки</button>
       <button className="choice remove-widget" disabled={busy} onClick={() => void mutate(async () => {
         setPanel(null)
         await api('widgets/' + opened.id, 'DELETE')
       })}>Удалить виджет</button>
     </Modal>}
-    {opened && panel.mode !== 'actions' && <Modal title={panel.mode === 'Settings' ? 'Настройки' : 'Подробнее'}
-      close={() => setPanel(null)}><div className={panel.mode === 'Details' ? 'details-view' : undefined}>{view(opened, panel.mode)}</div></Modal>}
+    {data && desktop && opened && panel.mode !== 'actions' && <Modal title={panel.mode === 'Settings' ? 'Настройки' : 'Подробнее'}
+      close={() => setPanel(null)}>{panel.mode === 'Details' ? <div className="details-view">{view(opened, 'Details')}</div> : <>
+        <SizeSettings key={opened.id} widget={opened} save={async (width, height) => {
+          const reason = placementError(data.widgets.filter(w => w.desktop_id === opened.desktop_id),
+            data.columns, desktop.rows, opened.id, opened.slot % data.columns,
+            Math.floor(opened.slot / data.columns), width, height)
+          if (reason) throw new Error(reason)
+          await api('widgets/' + opened.id + '/size', 'PUT', { width, height })
+          await reload()
+        }} />
+        {data?.plugins.find(p => p.id === opened.plugin_id)?.capabilities.includes('settings') &&
+          <section><h3>Настройки плагина</h3>{view(opened, 'Settings')}</section>}
+      </>}</Modal>}
   </>
 }

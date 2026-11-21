@@ -5,6 +5,8 @@ export interface WidgetInstance {
   desktop_id: number
   plugin_id: string
   slot: number
+  width: number
+  height: number
   settings: Record<string, unknown>
   appearance: Record<string, unknown>
 }
