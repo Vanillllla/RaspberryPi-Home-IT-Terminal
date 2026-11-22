@@ -19,7 +19,7 @@ def get_field(value, path):
 
 def execute(action, context):
     if action.kind == "time":
-        return datetime.now().strftime("%H:%M:%S"), ""
+        return datetime.now().strftime("%H:%M:%S"), "", []
     worker = Path(__file__).with_name("action_worker.py")
     with tempfile.TemporaryDirectory() as folder, tempfile.TemporaryFile() as output, tempfile.TemporaryFile() as log:
         with subprocess.Popen([sys.executable, "-I", str(worker)], stdin=subprocess.PIPE, stdout=output,
@@ -39,9 +39,10 @@ def execute(action, context):
             raise ValueError(detail or "Действие остановлено по лимиту ресурсов")
         output.seek(0)
         try:
-            result = json.load(output)
+            reply = json.load(output)
+            result = reply["value"]
         except ValueError as exc:
             raise ValueError("Результат действия слишком велик или не сериализуется в JSON") from exc
         if action.kind == "http":
             result = get_field(result, action.path)
-        return result, diagnostic
+        return result, diagnostic, reply["commands"]

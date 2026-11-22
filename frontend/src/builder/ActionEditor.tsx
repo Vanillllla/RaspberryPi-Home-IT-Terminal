@@ -22,7 +22,7 @@ export function ActionEditor({ action, items, update }: Props) {
     {action.trigger === 'timer' ?
       <label>Интервал, с<input type="number" min="1" step="1" value={action.interval} onChange={e => update({ interval: Number(e.target.value) })} /></label> :
       <><label>Команда запуска<input value={action.command} onChange={e => update({ command: e.target.value })} /></label>
-        <small>Отправители · {senders.map(e => e.label).join(', ') || 'не выбраны'}</small></>}
+        <small>Элементы-отправители · {senders.map(e => e.label).join(', ') || 'не выбраны'}</small></>}
     {action.kind === 'reach' && <>
       <label>IP или имя хоста<input value={action.host} onChange={e => update({ host: e.target.value })} /></label>
       <label>Порт TCP (пусто для ICMP)<input type="number" min="1" max="65535" value={action.port ?? ''}

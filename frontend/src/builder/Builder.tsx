@@ -4,6 +4,7 @@ import { canPlace, editableDraft, frameStyle, ElementLayout } from './ElementLay
 import { useElementDrag } from './useElementDrag'
 import { ElementView } from './TemplateCard'
 import { TemplateImport } from './TemplateImport'
+import { ActionHelp } from './ActionHelp'
 import { ActionEditor } from './ActionEditor'
 import { actionKinds, actionLabel, colors, contextExpression, emptyDraft, inputFormats, kinds, newAction, newItem, randomKey, subdivisions, unusedCommand, type ActionKind, type Color,
   type Action, type Draft, type Frame, type Item, type Kind, type Template } from './model'
@@ -56,6 +57,7 @@ export function Builder({ cellSize, columns, maxRows, templates, busy, setBusy, 
   const [elementId, setElement] = useState('')
   const [actionId, setAction] = useState('')
   const [tab, setTab] = useState<'element' | 'actions'>('element')
+  const [helpOpen, setHelpOpen] = useState(false)
   const [kind, setKind] = useState<ActionKind>('time')
   const [error, setError] = useState('')
   const selectedTemplate = templates.find(template => template.id === templateId)
@@ -264,7 +266,10 @@ export function Builder({ cellSize, columns, maxRows, templates, busy, setBusy, 
       <section className="builder-inspector"><div className="builder-tabs">
         <button aria-pressed={tab === 'element'} onClick={() => setTab('element')}>Свойства</button>
         <button aria-pressed={tab === 'actions'} onClick={() => { if (tab !== 'actions') showActions() }}>Действия</button>
+        <button className="action-help-toggle" type="button" title="Справка по API действий" aria-label="Справка по API действий"
+          aria-expanded={helpOpen} aria-controls="builder-action-help" onClick={() => setHelpOpen(open => !open)}>i</button>
       </div>
+      {helpOpen && <ActionHelp switchId={items.find(e => e.kind === 'switch')?.id} />}
       {tab === 'element' && (item ? <>
         <h4>{kinds[item.kind]}</h4>
         <label>Подпись<input value={item.label} onChange={e => updateItem({ label: e.target.value })} /></label>

@@ -1,4 +1,12 @@
 .widget-buttons, .builder-tabs { display: flex; flex-wrap: wrap; gap: .4rem; }
+.builder-tabs { align-items: center; }
+.builder-tabs .action-help-toggle {
+  margin-inline-start: auto; width: 2rem; height: 2rem; min-height: 2rem; padding: 0;
+  border-radius: 50%; font: bold 1.1rem Georgia, serif;
+}
+.action-help { min-width: 0; padding: .7rem; border: 1px solid var(--line); border-radius: 8px; }
+.action-help p, .action-help pre { margin: .5rem 0 .8rem; }
+.action-help pre { white-space: pre-wrap; }
 .widget-buttons { justify-content: flex-end; }
 dialog:has(.builder) { width: min(1380px, 96vw); max-width: 96vw; height: 92dvh; max-height: 96dvh; padding: 1rem; }
 .builder { display: flex; flex-direction: column; gap: 1rem; }

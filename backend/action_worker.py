@@ -44,9 +44,16 @@ class HttpRedirects(HTTPRedirectHandler):
         return super().redirect_request(req, fp, code, msg, headers, newurl)
 
 
-def run(action, context):
+def run(action, context, commands):
     if action["kind"] == "python":
-        scope = {"__name__": "__widget__", "math": math, "datetime": datetime,
+        def emit(command):
+            if not isinstance(command, str) or not command.strip() or len(command) > 100:
+                raise ValueError("emit ожидает непустое имя команды длиной до 100 символов")
+            if len(commands) >= 64:
+                raise ValueError("Одно действие может отправить до 64 команд")
+            commands.append(command)
+
+        scope = {"emit": emit, "__name__": "__widget__", "math": math, "datetime": datetime,
                  "statistics": statistics, "json": json, "re": re}
         restrict_python()
         with redirect_stdout(sys.stderr):
@@ -94,8 +101,9 @@ if __name__ == "__main__":
     resource.setrlimit(resource.RLIMIT_AS, (192 << 20, 192 << 20))
     resource.setrlimit(resource.RLIMIT_FSIZE, (2 << 20, 2 << 20))
     try:
-        result = run(*json.load(sys.stdin))
-        print(json.dumps(result, allow_nan=False, ensure_ascii=False))
+        commands = []
+        result = run(*json.load(sys.stdin), commands)
+        print(json.dumps({"value": result, "commands": commands}, allow_nan=False, ensure_ascii=False))
     except Exception as exc:
         print(f"{type(exc).__name__}: {exc}")
         sys.exit(1)

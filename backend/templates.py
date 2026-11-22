@@ -127,11 +127,12 @@ class Definition(BaseModel):
             if e.kind == "slider" and not valid_slider(e, e.initial):
                 raise ValueError(f"{e.label}: проверьте диапазон, шаг и начальное значение")
         commands = {e.command for e in elements.values() if e.kind in ("button", "switch", "slider")}
+        python_sender = any(a.kind == "python" for a in self.actions)
         bound = set()
         for a in self.actions:
             if a.trigger == "command" and not a.command.strip():
                 raise ValueError(f"{a.name}: задайте команду запуска")
-            if a.targets and a.trigger == "command" and a.command not in commands:
+            if a.targets and a.trigger == "command" and a.command not in commands and not python_sender:
                 raise ValueError(f"{a.name}: нет элемента, отправляющего команду {a.command}")
             if a.kind == "reach" and not re.fullmatch(r"[a-zA-Z0-9:][a-zA-Z0-9:.%-]{0,252}", a.host):
                 raise ValueError(f"{a.name}: укажите имя хоста или IP")
@@ -331,7 +332,7 @@ def run_action(widget_id: int, action_id: str, body: Invocation):
                 return {"skipped": True}
             running.add(key)
     try:
-        result, diagnostic = execute(action, context)
+        result, diagnostic, commands = execute(action, context)
         outputs = {}
         elements = definition.elements()
         for t in action.targets:
@@ -348,7 +349,7 @@ def run_action(widget_id: int, action_id: str, body: Invocation):
                 saved = json.loads(row["settings"]).get("outputs", {})
                 conn.execute("UPDATE widgets SET settings=json_set(settings,'$.outputs',json(?)) WHERE id=?",
                              (json.dumps({**saved, **outputs}), widget_id))
-        return {"outputs": outputs, "diagnostic": diagnostic}
+        return {"outputs": outputs, "diagnostic": diagnostic, "commands": commands}
     except ValueError as exc:
         raise HTTPException(422, str(exc)) from exc
     finally:

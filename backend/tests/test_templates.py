@@ -40,10 +40,28 @@ class TemplateTests(unittest.TestCase):
         self.assertEqual(invalid.exception.status_code, 422)
         self.assertEqual(save_inputs(widget_id, Invocation(revision=1, inputs={"address": ""})),
                          {"address": "", "code": "007"})
-        with patch("backend.templates.execute", side_effect=lambda action, context: (context["values"]["address"], "")):
+        with patch("backend.templates.execute", side_effect=lambda action, context: (context["values"]["address"], "", [])):
             result = run_action(widget_id, "read", captured)
         self.assertEqual(result["outputs"], {"out": "192.168.1.2"})
         self.assertEqual(state()["widgets"][0]["settings"]["inputs"], {"address": "", "code": "007"})
+
+    def test_python_emits_commands_separately_from_its_return_value(self):
+        self.draft["actions"][0]["command"] = "next"
+        self.draft["actions"].append({
+            "id": "route", "name": "Выбор", "trigger": "command", "command": "go", "kind": "python",
+            "code": 'def run(context):\n    print("route")\n    emit("next")\n    emit("clear")\n    return {"commands": ["ordinary data"]}',
+            "targets": [],
+        })
+        template = create_template(Definition(**self.draft))
+        widget = create_widget(1, AddWidget(plugin_id=template["id"]))
+        result = run_action(widget["id"], "route", Invocation(revision=1))
+        self.assertEqual(result, {"outputs": {}, "diagnostic": "route", "commands": ["next", "clear"]})
+
+        template["actions"][1]["code"] = 'def run(context):\n    emit("next")\n    emit("")'
+        edit_template(template["id"], Definition(**template))
+        with self.assertRaises(HTTPException) as failure:
+            run_action(widget["id"], "route", Invocation(revision=2))
+        self.assertIn("непустое имя команды", failure.exception.detail)
 
     def test_create_retry_and_stale_edit(self):
         key = uuid4()
@@ -110,7 +128,7 @@ class TemplateTests(unittest.TestCase):
         def execute(action, context):
             started.set()
             self.assertTrue(finish.wait(3))
-            return "устаревший результат", ""
+            return "устаревший результат", "", []
 
         with patch("backend.templates.execute", execute), ThreadPoolExecutor() as pool:
             work = pool.submit(run_action, widget["id"], "read", Invocation(revision=1))
@@ -132,7 +150,7 @@ class TemplateTests(unittest.TestCase):
             if context["instance_id"] == ids[0]:
                 started.set()
                 self.assertTrue(finish.wait(3))
-            return "готово", ""
+            return "готово", "", []
 
         with patch("backend.templates.execute", execute), ThreadPoolExecutor() as pool:
             request = Invocation(revision=1)
