@@ -6,9 +6,12 @@ from pathlib import Path
 from unittest.mock import patch
 from zipfile import ZipFile
 
-from backend.main import state
+from fastapi import HTTPException
+
+from backend.main import AddWidget, create_widget, state
 from backend.storage import initialize
 from backend.template_packages import TemplateConflict, discover_packages, import_file, import_zip
+from backend.templates import catalog_version, delete_template
 
 
 class PackageTests(unittest.TestCase):
@@ -39,6 +42,35 @@ class PackageTests(unittest.TestCase):
             discover_packages(self.root)
         self.assertEqual(state()["templates"], [saved])
         self.assertEqual(state()["widgets"], [])
+
+    def test_delete_keeps_placement_and_requires_explicit_reimport(self):
+        file = self.root / self.path
+        file.parent.mkdir()
+        file.write_text(json.dumps(self.package), encoding="utf-8")
+        discover_packages(self.root)
+        saved, = state()["templates"]
+        template_id = saved["id"]
+        widget = create_widget(1, AddWidget(plugin_id=template_id))
+        revision = saved["revision"]
+        with self.assertRaises(HTTPException) as stale:
+            delete_template(template_id, revision - 1)
+        self.assertEqual(stale.exception.status_code, 409)
+        self.assertEqual(catalog_version(), [f"{template_id}:{revision}"])
+
+        delete_template(template_id, revision)
+        initialize()
+        discover_packages(self.root)
+        self.assertEqual(catalog_version(), [])
+        self.assertEqual(state()["templates"], [])
+        self.assertEqual(state()["widgets"], [widget])
+
+        restored = import_file(self.path, file.read_bytes())
+        self.assertEqual(restored["revision"], revision + 1)
+        with self.assertRaises(HTTPException) as stale:
+            delete_template(template_id, revision)
+        self.assertEqual(stale.exception.status_code, 409)
+        self.assertEqual(state()["templates"], [restored])
+        self.assertEqual(state()["widgets"], [widget])
 
     def test_reject_invalid_definition_and_archive_paths(self):
         for fields in [

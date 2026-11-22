@@ -20,9 +20,10 @@ interface Props {
   setBusy: (value: boolean) => void
   imported: (template: Template) => void
   saved: (template: Template) => Promise<void>
+  deleted: (id: string) => void
 }
 
-export function Builder({ cellSize, columns, maxRows, templates, busy, setBusy, imported, saved }: Props) {
+export function Builder({ cellSize, columns, maxRows, templates, busy, setBusy, imported, saved, deleted }: Props) {
   const [draft, setDraft] = useState<Draft>(emptyDraft)
   const [templateId, setTemplateId] = useState('')
   const [creationKey, setCreationKey] = useState(() => randomKey())
@@ -31,6 +32,7 @@ export function Builder({ cellSize, columns, maxRows, templates, busy, setBusy, 
   const [tab, setTab] = useState<'element' | 'actions'>('element')
   const [kind, setKind] = useState<ActionKind>('time')
   const [error, setError] = useState('')
+  const selectedTemplate = templates.find(template => template.id === templateId)
   const items = draft.rows.flat()
   const item = items.find(e => e.id === elementId)
   const action = draft.actions.find(a => a.id === actionId)
@@ -157,6 +159,21 @@ export function Builder({ cellSize, columns, maxRows, templates, busy, setBusy, 
     } catch (e) { setError(e instanceof Error ? e.message : 'Ошибка сохранения шаблона') }
     finally { setBusy(false) }
   }
+  async function remove(template: Template) {
+    const prompt = 'Удалить шаблон «' + template.name + '»? Размещённые карточки останутся на столе и будут показывать заглушку.'
+    if (busy || !window.confirm(prompt)) return
+    setError('')
+    setBusy(true)
+    try {
+      await api('templates/' + template.id + '?revision=' + template.revision, 'DELETE')
+      deleted(template.id)
+      open('')
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Не удалось удалить шаблон')
+    } finally {
+      setBusy(false)
+    }
+  }
   return <div className="builder" inert={busy} aria-busy={busy}>
     <div className="builder-bar">
       <label>Шаблон<select aria-label="Шаблон" value={templateId} onChange={e => open(e.target.value)}>
@@ -166,8 +183,9 @@ export function Builder({ cellSize, columns, maxRows, templates, busy, setBusy, 
         onChange={e => change({ name: e.target.value })} /></label>
       <label>Описание<input value={draft.description ?? ''} maxLength={2000}
         onChange={e => change({ description: e.target.value })} /></label>
-      <TemplateImport setBusy={setBusy} imported={imported} open={open} />
+      <TemplateImport key={templateId} setBusy={setBusy} imported={imported} open={open} />
       <button className="primary" disabled={busy} onClick={save}>Сохранить шаблон</button>
+      {selectedTemplate && <button disabled={busy} onClick={() => void remove(selectedTemplate)}>Удалить шаблон</button>}
     </div>
     {error && <p role="alert">{error}</p>}
     <div className="builder-layout">

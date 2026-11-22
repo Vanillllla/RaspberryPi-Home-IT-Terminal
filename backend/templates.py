@@ -169,6 +169,8 @@ def save(body, template_id=None, creation_key=None):
     with database(write=True) as conn:
         if template_id is None:
             template_id = "template:" + (creation_key or uuid4()).hex
+            if conn.execute("SELECT 1 FROM deleted_templates WHERE id=?", (template_id,)).fetchone():
+                raise HTTPException(409, "Шаблон удалён. Создайте новый черновик.")
             body.revision = 1
             existing = conn.execute("SELECT definition FROM templates WHERE id=?", (template_id,)).fetchone()
             if existing is None:
@@ -199,7 +201,10 @@ def save(body, template_id=None, creation_key=None):
 @router.get("/templates/version")
 def catalog_version():
     with database() as conn:
-        return conn.execute("SELECT COALESCE(SUM(json_extract(definition,'$.revision')), 0) FROM templates").fetchone()[0]
+        return [
+            f"{row['id']}:{row['revision']}"
+            for row in conn.execute("SELECT id, json_extract(definition,'$.revision') AS revision FROM templates ORDER BY id")
+        ]
 
 
 @router.post("/templates", status_code=201)
@@ -210,6 +215,23 @@ def create_template(body: Definition, creation_key: UUID | None = None):
 @router.put("/templates/{template_id}")
 def edit_template(template_id: str, body: Definition):
     return save(body, template_id)
+
+
+@router.delete("/templates/{template_id}")
+def delete_template(template_id: str, revision: int | None = None):
+    with database(write=True) as conn:
+        row = conn.execute(
+            "SELECT json_extract(definition,'$.revision') AS revision FROM templates WHERE id=?", (template_id,)
+        ).fetchone()
+        if row is None:
+            if conn.execute("SELECT 1 FROM deleted_templates WHERE id=?", (template_id,)).fetchone():
+                return {"id": template_id}
+            raise HTTPException(404, "Шаблон отсутствует")
+        if revision is not None and row["revision"] != revision:
+            raise HTTPException(409, "Версия шаблона изменилась. Откройте его заново.")
+        conn.execute("DELETE FROM templates WHERE id=?", (template_id,))
+        conn.execute("INSERT INTO deleted_templates VALUES (?, ?)", (template_id, row["revision"]))
+    return {"id": template_id}
 
 
 def inputs(definition, supplied):

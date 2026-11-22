@@ -38,7 +38,7 @@ def check_path(path):
     return parts[0]
 
 
-def import_file(path, content):
+def import_file(path, content, *, automatic=False):
     check_path(path)
     if len(content) > MAX_BYTES:
         raise ValueError("Размер template.json превышает 8 МиБ")
@@ -59,14 +59,20 @@ def import_file(path, content):
 
     package.validate_links()
     package.description = package.description.strip()
-    package.revision = 1
     with database(write=True) as conn:
+        deleted = conn.execute("SELECT revision FROM deleted_templates WHERE id=?", (package.id,)).fetchone()
+        if automatic and deleted is not None:
+            return
+        # An editor or action request from before deletion must remain stale after re-import.
+        package.revision = deleted["revision"] + 1 if deleted else 1
         inserted = conn.execute(
             "INSERT INTO templates(id, definition) VALUES (?, ?) ON CONFLICT(id) DO NOTHING",
             (package.id, package.model_dump_json(exclude={"id"})),
         )
         if not inserted.rowcount:
             raise TemplateConflict(f"Шаблон с ID {package.id} уже есть в каталоге")
+        if deleted:
+            conn.execute("DELETE FROM deleted_templates WHERE id=?", (package.id,))
     return package.model_dump()
 
 
@@ -108,7 +114,7 @@ def discover_packages(root=PACKAGES):
             if folder.is_symlink() or file.is_symlink() or not file.is_file() or list(folder.iterdir()) != [file]:
                 raise ValueError("В папке нужен один обычный файл template.json")
             with file.open("rb") as stream:
-                import_file(folder.name + "/template.json", stream.read(MAX_BYTES + 1))
+                import_file(folder.name + "/template.json", stream.read(MAX_BYTES + 1), automatic=True)
         except (OSError, ValueError, RecursionError) as exc:
             log.warning("Пропущен пакет %s: %s", folder.name, exc)
 

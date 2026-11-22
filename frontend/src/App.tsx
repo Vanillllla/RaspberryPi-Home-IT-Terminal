@@ -56,7 +56,7 @@ export function App() {
   useEffect(() => { reload().catch(e => setError(e.message)) }, [reload])
   const desktop = data?.desktops.find(d => d.id === active) ?? data?.desktops[0]
 
-  const catalogVersion = data?.templates?.reduce((sum, t) => sum + t.revision, 0)
+  const catalogVersion = data?.templates.map(t => t.id + ':' + t.revision).sort().join('\n')
   useEffect(() => {
     if (catalogVersion === undefined || panel?.mode === 'builder') return
     let disposed = false
@@ -65,8 +65,8 @@ export function App() {
       if (document.hidden || checking) return
       checking = true
       try {
-        const version = await api<number>('templates/version')
-        if (!disposed && version !== catalogVersion) await reload()
+        const version = await api<string[]>('templates/version')
+        if (!disposed && version.join('\n') !== catalogVersion) await reload()
       } catch { /* Retry on the next tick when the server is available again. */ }
       finally { checking = false }
     }
@@ -136,7 +136,7 @@ export function App() {
 
   function view(widget: WidgetInstance, mode: 'Widget' | 'Details') {
     const manifest = data?.plugins.find(p => p.id === widget.plugin_id)
-    if (!manifest) return <p>Плагин недоступен. Размещение сохранено.</p>
+    if (!manifest) return <p>{widget.plugin_id.startsWith('template:') ? 'Шаблон недоступен.' : 'Плагин недоступен.'} Размещение сохранено.</p>
     return <PluginView instance={widget} mode={mode} saveSettings={async settings => {
       await api('widgets/' + widget.id + '/settings', 'PUT', { settings })
       await reload()
@@ -270,6 +270,7 @@ export function App() {
     {panel?.mode === 'builder' && data && <Modal title="Конструктор виджетов" pending={busy} close={() => setPanel(null)}>
       <Builder cellSize={cellSize} columns={data.columns} maxRows={data.max_rows} templates={data.templates} busy={busy} setBusy={setBusy}
         imported={template => setData(current => current && { ...current, templates: [...current.templates.filter(t => t.id !== template.id), template] })}
+        deleted={id => setData(current => current && { ...current, templates: current.templates.filter(t => t.id !== id) })}
         saved={async template => {
         try {
           await reload()
