@@ -4,25 +4,65 @@
 
 ## Запуск из Debian WSL2
 
-Откройте два терминала в корне репозитория. Нужны Python 3.11+ с модулем venv и Node.js 22.12+ с npm. Версии можно проверить командами `python3 --version` и `node --version`. Если в Debian отсутствует venv, установите пакет `python3-venv`.
+Откройте два терминала **Debian WSL**. Если открыли PowerShell, сначала выполните `wsl -d Debian`. Команды ниже рассчитаны на репозиторий в `~/Projects/RaspberryDashboard`. Если он лежит в другом месте, подставьте свой путь.
 
-**Терминал 1 — backend** (создание окружения и установка зависимостей нужны при первом запуске).
+### 1. Проверьте инструменты в Debian
+
+Нужны Python 3.11 или новее и Linux-версия Node.js 22.12 или новее с npm. В терминале для frontend выполните:
 
 ```bash
-python3 -m venv .venv
-.venv/bin/python -m pip install -r backend/requirements.txt
+python3 --version
+command -v node
+command -v npm
+node -p 'process.platform + " " + process.version'
+npm --version
+```
+
+Последняя проверка Node.js должна показать `linux v…`. Путь к npm должен вести к установке внутри Debian, например `/usr/bin/npm` или `/home/…/.nvm/…/bin/npm`. Путь под `/mnt/c/`, логи npm в `C:\Users\…` или вывод `win32` означают, что используется Windows-установка. Если Python или venv отсутствует, выполните `sudo apt update && sudo apt install -y python3 python3-venv`.
+
+Если Linux-версии Node.js и npm нет или версия Node.js слишком старая, установите Node.js 22 через nvm прямо в Debian. [Инструкция nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
+
+```bash
+sudo apt update && sudo apt install -y curl ca-certificates git
+curl -fsSL https://raw.githubusercontent.com/nvm-sh/nvm/v0.41.0/install.sh | bash
+export NVM_DIR="${NVM_DIR:-${XDG_CONFIG_HOME:-$HOME/.config}/nvm}"
+if [ ! -s "$NVM_DIR/nvm.sh" ]; then export NVM_DIR="$HOME/.nvm"; fi
+source "$NVM_DIR/nvm.sh"
+nvm install 22
+nvm use 22
+hash -r
+```
+
+Повторите проверку версий и путей. Если nvm уже установлен, в терминале frontend достаточно выполнить `nvm use 22` после загрузки nvm.
+
+### 2. Запустите backend в первом терминале
+
+Создание окружения и установка Python-зависимостей нужны при первом запуске. Активация `.venv` для этих команд не требуется.
+
+```bash
+cd ~/Projects/RaspberryDashboard &&
+python3 -m venv .venv &&
+.venv/bin/python -m pip install -r backend/requirements.txt &&
 .venv/bin/python -m uvicorn backend.main:app --host 127.0.0.1 --port 8000
 ```
 
-**Терминал 2 — frontend** (повторите `npm ci` после изменения зависимостей).
+Дождитесь строки `Application startup complete` и оставьте этот терминал открытым.
+
+### 3. Запустите frontend во втором терминале
+
+Команды ниже переходят в корень и явно задают каталог frontend для обеих команд npm. Повторяйте `npm ci` после изменения зависимостей.
 
 ```bash
-cd frontend
-npm ci
-npm run dev
+cd ~/Projects/RaspberryDashboard &&
+test -f frontend/package.json &&
+test -f frontend/package-lock.json &&
+npm --prefix ./frontend ci &&
+npm --prefix ./frontend run dev
 ```
 
 Откройте [Pi Terminal в браузере Windows](http://localhost:5173). Запуск рассчитан на стандартный проброс localhost в WSL2. Vite передаёт запросы `/api` на FastAPI. Для диагностики откройте [состояние приложения через Vite](http://localhost:5173/api/state). Остановить каждый процесс можно сочетанием Ctrl+C.
+
+Если команда остановилась без сообщения после проверки файлов, выполните `pwd` и `ls frontend/package.json frontend/package-lock.json` из корня проекта. Оба файла входят в репозиторий. Ошибка `EUSAGE` про отсутствующий lock-файл или `ENOENT` с путём к `package.json` в корне проекта означает, что npm искал файлы вне `frontend/`. Используйте блок команд выше с Linux-версией npm.
 
 ### Доступ из домашней сети и VPN
 
@@ -119,7 +159,7 @@ def run(context):
 
 ## Проверка сборки
 
-В каталоге `frontend/` выполните `npm run build`. Команда проверяет типы ядра и плагинов и собирает frontend в `frontend/dist/`. Интерактивная документация REST API доступна при работающем backend. [FastAPI Swagger UI](http://localhost:8000/docs)
+Из корня репозитория выполните `npm --prefix ./frontend run build`. Команда проверяет типы ядра и плагинов и собирает frontend в `frontend/dist/`. Интерактивная документация REST API доступна при работающем backend. [FastAPI Swagger UI](http://localhost:8000/docs)
 
 ## Материалы проекта
 
