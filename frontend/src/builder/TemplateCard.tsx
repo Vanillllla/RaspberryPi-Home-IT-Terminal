@@ -2,7 +2,8 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { api } from '../api'
 import { WidgetSlider, WidgetSwitch, type WidgetInstance } from '../plugin'
 import { ElementLayout } from './ElementLayout'
-import { colors, type Action, type Color, type Item, type Inputs, type Outputs, type Template } from './model'
+import { WidgetInput } from './WidgetInput'
+import { colors, type Action, type Color, type InputValue, type Item, type Inputs, type Outputs, type Template } from './model'
 
 function TextResult({ value }: { value: string }) {
   if (value.startsWith('{')) {
@@ -21,11 +22,13 @@ interface ElementProps {
   item: Item
   inputs?: Inputs
   outputs?: Outputs
-  change?: (item: Item, value?: boolean | number) => void
+  change?: (item: Item, value?: InputValue) => void
 }
 export function ElementView({ item, inputs = {}, outputs = {}, change }: ElementProps) {
   const value = inputs[item.id]
   switch (item.kind) {
+    case 'input':
+      return <WidgetInput item={item} value={typeof value === 'string' ? value : ''} change={v => change?.(item, v)} />
     case 'button':
       return <button className="widget-button" type="button" onClick={() => change?.(item)}>{item.label}</button>
     case 'switch':
@@ -50,9 +53,11 @@ interface RunResult { outputs?: Outputs; diagnostic?: string; skipped?: boolean 
 interface Props {
   template: Template; instance: WidgetInstance; active: boolean
   patch: (id: number, revision: number, group: 'inputs' | 'outputs', data: Inputs | Outputs) => void
+  resetTimers: Map<string, number>
+  inputWrites: Map<number, Promise<void>>
 }
 
-export function TemplateCard({ template, instance, active, patch }: Props) {
+export function TemplateCard({ template, instance, active, patch, resetTimers, inputWrites }: Props) {
   const inputs = (instance.settings.inputs ?? {}) as Inputs
   const outputs = (instance.settings.outputs ?? {}) as Outputs
   const latest = useRef({ inputs, outputs })
@@ -62,7 +67,6 @@ export function TemplateCard({ template, instance, active, patch }: Props) {
   actions.current = template.actions
   const pendingTimers = useRef(new Set<string>())
   const commands = useRef(new Map<string, Promise<void>>())
-  const writes = useRef(Promise.resolve())
   const base = 'widgets/' + instance.id
   const revision = template.revision
 
@@ -101,19 +105,42 @@ export function TemplateCard({ template, instance, active, patch }: Props) {
     }
   }, [active, run])
 
-  function change(item: Item, value?: boolean | number) {
+  function saveInput(id: string, value: InputValue) {
+    const update = { [id]: value }
+    latest.current.inputs = { ...latest.current.inputs, ...update }
+    patch(instance.id, revision, 'inputs', update)
+    const previous = inputWrites.get(instance.id) ?? Promise.resolve()
+    const write = previous.then(async () => {
+      await api(base + '/inputs', 'PUT', { revision, inputs: update })
+      setMessages(old => ({ ...old, inputs: '' }))
+    }).catch(e => setMessages(old => ({ ...old, inputs: e.message })))
+    inputWrites.set(instance.id, write)
+    void write.finally(() => {
+      if (inputWrites.get(instance.id) === write) inputWrites.delete(instance.id)
+    })
+  }
+
+  function resetKey(id: string) {
+    return instance.id + ':' + id
+  }
+
+  function cancelReset(key: string) {
+    window.clearTimeout(resetTimers.get(key))
+    resetTimers.delete(key)
+  }
+
+  function change(item: Item, value?: InputValue) {
     if (!active) return
-    if (value !== undefined) {
-      const update = { [item.id]: value }
-      latest.current.inputs = { ...latest.current.inputs, ...update }
-      patch(instance.id, revision, 'inputs', update)
-      writes.current = writes.current.then(async () => {
-        await api(base + '/inputs', 'PUT', { revision, inputs: update })
-        setMessages(old => ({ ...old, inputs: '' }))
-      }).catch(e => setMessages(old => ({ ...old, inputs: e.message })))
+    if (value !== undefined) saveInput(item.id, value)
+    if (item.kind === 'input') {
+      cancelReset(resetKey(item.id))
+      return
     }
-    const snapshot = { ...latest.current }
-    if (item.command) template.actions.filter(a => a.targets.length && a.trigger === 'command' && a.command === item.command)
+    if (!item.command) return
+    const fields = template.rows.flat().filter(field => field.kind === 'input')
+    const snapshot = { ...latest.current, inputs: { ...latest.current.inputs } }
+    for (const field of fields) snapshot.inputs[field.id] ??= ''
+    template.actions.filter(a => a.targets.length && a.trigger === 'command' && a.command === item.command)
       .forEach(action => {
         const previous = commands.current.get(action.id) ?? Promise.resolve()
         const next = previous.then(() => run(action, snapshot))
@@ -122,6 +149,15 @@ export function TemplateCard({ template, instance, active, patch }: Props) {
           if (commands.current.get(action.id) === next) commands.current.delete(action.id)
         })
       })
+    for (const field of fields) {
+      if (field.resetCommand !== item.command) continue
+      const key = resetKey(field.id)
+      cancelReset(key)
+      resetTimers.set(key, window.setTimeout(() => {
+        resetTimers.delete(key)
+        saveInput(field.id, '')
+      }, 500))
+    }
   }
 
   return <div className="built-card">

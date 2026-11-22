@@ -9,7 +9,7 @@ import { actionKinds, actionLabel, colors, emptyDraft, kinds, newAction, newItem
   type Action, type Draft, type Frame, type Item, type Kind, type Template } from './model'
 import './builder.css'
 
-const symbols: Record<Kind, string> = { text: 'T', button: '▣', switch: '◐', slider: '↔', indicator: '●' }
+const symbols: Record<Kind, string> = { text: 'T', button: '▣', switch: '◐', slider: '↔', indicator: '●', input: '▏' }
 
 interface Props {
   cellSize: number
@@ -71,7 +71,7 @@ export function Builder({ cellSize, columns, maxRows, templates, busy, setBusy, 
     select(element.id)
   }
   function fromPalette(kind: Kind) {
-    const sizes: Record<Kind, [number, number]> = { text: [6, 3], button: [6, 3], indicator: [2, 2], switch: [9, 3], slider: [10, 4] }
+    const sizes: Record<Kind, [number, number]> = { text: [6, 3], button: [6, 3], indicator: [2, 2], switch: [9, 3], slider: [10, 4], input: [14, 3] }
     const [w, h] = sizes[kind]
     return { ...newItem(kind), frame: { x: 0, y: 0, width: Math.min(w, gridWidth), height: Math.min(h, gridHeight) } }
   }
@@ -231,6 +231,18 @@ export function Builder({ cellSize, columns, maxRows, templates, busy, setBusy, 
       {tab === 'element' && (item ? <>
         <h4>{kinds[item.kind]}</h4>
         <label>Подпись<input value={item.label} onChange={e => updateItem({ label: e.target.value })} /></label>
+        {item.kind === 'input' && <>
+          <label>Формат поля<select value={item.inputMode ?? 'text'}
+            onChange={e => updateItem({ inputMode: e.target.value as Item['inputMode'] })}>
+            <option value="text">Текст и числа</option><option value="ipv4">IPv4</option>
+          </select></label>
+          <label>Подсказка<input maxLength={200} value={item.placeholder ?? ''}
+            placeholder={item.inputMode === 'ipv4' ? 'Введите IP-адрес' : 'Введите текст'}
+            onChange={e => updateItem({ placeholder: e.target.value })} /></label>
+          <label>Сброс по команде<input maxLength={100} value={item.resetCommand ?? ''}
+            placeholder="Без сброса" onChange={e => updateItem({ resetCommand: e.target.value })} /></label>
+          <small>Ключ значения для Python · <code>{item.id}</code></small>
+        </>}
         {['button', 'switch', 'slider'].includes(item.kind) && <>
           <label>Отправить команду<input value={item.command} placeholder="Например, refresh" onChange={e => updateItem({ command: e.target.value })} /></label>
           {item.command && <small>Действия · {sentActions.map(a => a.name).join(', ') || 'не назначены'}</small>}

@@ -1,5 +1,6 @@
 export const kinds = {
   text: 'Текст', button: 'Кнопка', switch: 'Переключатель', slider: 'Слайдер', indicator: 'Индикатор состояния',
+  input: 'Поле ввода',
 }
 export const actionKinds = {
   time: 'Текущее время', reach: 'Проверка доступности', http: 'HTTP GET', python: 'Python',
@@ -8,7 +9,8 @@ export const colors = { green: 'Зелёный', yellow: 'Жёлтый', red: '�
 export type Kind = keyof typeof kinds
 export type Color = keyof typeof colors
 export type ActionKind = keyof typeof actionKinds
-export type Inputs = Record<string, number | boolean>
+export type InputValue = string | number | boolean
+export type Inputs = Record<string, InputValue>
 export type Outputs = Record<string, string>
 
 export interface Cell { x: number; y: number }
@@ -18,6 +20,9 @@ export interface Frame extends Cell { width: number; height: number }
 export const fontFamilies = { system: 'inherit', serif: 'Georgia, serif', monospace: 'monospace' }
 
 export interface Item {
+  inputMode?: 'text' | 'ipv4'
+  placeholder?: string
+  resetCommand?: string
   frame?: Frame | null
   fontFamily?: keyof typeof fontFamilies
   fontSize?: number

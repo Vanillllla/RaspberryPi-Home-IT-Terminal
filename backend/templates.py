@@ -41,7 +41,7 @@ class Frame(BaseModel):
 class Element(BaseModel):
     model_config = ConfigDict(allow_inf_nan=False)
     id: Id
-    kind: Literal["text", "button", "switch", "slider", "indicator"]
+    kind: Literal["text", "button", "switch", "slider", "indicator", "input"]
     label: str = Field(max_length=2000)
     frame: Frame | None = None
     fontFamily: Literal["system", "serif", "monospace"] = "system"
@@ -55,6 +55,9 @@ class Element(BaseModel):
     step: float = 1
     initial: float = 0
     color: Color = "green"
+    inputMode: Literal["text", "ipv4"] = "text"
+    placeholder: str = Field(default="", max_length=200)
+    resetCommand: str = Field(default="", max_length=100)
 
 
 class Target(BaseModel):
@@ -242,13 +245,27 @@ def inputs(definition, supplied):
             result[e.id] = value if isinstance(value, bool) else e.checked
         elif e.kind == "slider":
             result[e.id] = value if valid_slider(e, value) else e.initial
+        elif e.kind == "input":
+            result[e.id] = value if valid_input(e, value) else ""
     return result
+
+
+def valid_input(element, value):
+    if not isinstance(value, str) or len(value) > 2000 or "\n" in value or "\r" in value:
+        return False
+    if element.inputMode == "text":
+        return True
+    # Accept partial octets while editing. A completed address has four nonempty octets.
+    octets = value.split(".")
+    return len(octets) <= 4 and all(not octet or (
+        re.fullmatch(r"[0-9]{1,3}", octet) and int(octet) <= 255
+    ) for octet in octets)
 
 
 class Invocation(BaseModel):
     revision: int
     outputs: dict[str, str] = Field(default_factory=dict, max_length=128)
-    inputs: dict[str, bool | float] = Field(default_factory=dict, max_length=128)
+    inputs: dict[str, bool | float | str] = Field(default_factory=dict, max_length=128)
 
 
 def load_instance(conn, widget_id, revision):

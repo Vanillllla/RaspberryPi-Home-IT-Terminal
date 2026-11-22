@@ -10,7 +10,7 @@ from fastapi import HTTPException
 
 from backend.main import AddWidget, create_widget, state
 from backend.storage import initialize
-from backend.templates import Definition, Invocation, create_template, edit_template, run_action
+from backend.templates import Definition, Invocation, create_template, edit_template, run_action, save_inputs
 
 
 class TemplateTests(unittest.TestCase):
@@ -24,6 +24,26 @@ class TemplateTests(unittest.TestCase):
             "actions": [{"id": "read", "name": "Время", "kind": "time", "trigger": "command",
                          "command": "go", "targets": [{"element": "out"}]}],
         }
+
+    def test_input_strings_survive_saved_reset_in_command_snapshot(self):
+        self.draft["rows"][0] += [
+            {"id": "address", "kind": "input", "label": "Адрес", "inputMode": "ipv4", "resetCommand": "go"},
+            {"id": "code", "kind": "input", "label": "Код"},
+        ]
+        template = create_template(Definition(**self.draft))
+        widget_id = create_widget(1, AddWidget(plugin_id=template["id"]))["id"]
+        entered = {"address": "192.168.1.2", "code": "007"}
+        captured = Invocation.model_validate_json(Invocation(revision=1, inputs=entered).model_dump_json())
+        self.assertEqual(save_inputs(widget_id, captured), entered)
+        with self.assertRaises(HTTPException) as invalid:
+            save_inputs(widget_id, Invocation(revision=1, inputs={"address": "192.168.1.256"}))
+        self.assertEqual(invalid.exception.status_code, 422)
+        self.assertEqual(save_inputs(widget_id, Invocation(revision=1, inputs={"address": ""})),
+                         {"address": "", "code": "007"})
+        with patch("backend.templates.execute", side_effect=lambda action, context: (context["values"]["address"], "")):
+            result = run_action(widget_id, "read", captured)
+        self.assertEqual(result["outputs"], {"out": "192.168.1.2"})
+        self.assertEqual(state()["widgets"][0]["settings"]["inputs"], {"address": "", "code": "007"})
 
     def test_create_retry_and_stale_edit(self):
         key = uuid4()

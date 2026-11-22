@@ -39,6 +39,13 @@ export function App() {
   const [cellSize, setCellSize] = useState(80)
   const [rows, setRows] = useState(1)
   const [busy, setBusy] = useState(false)
+  // A reset belongs to the widget instance, even when its desktop is temporarily unmounted.
+  const [resetTimers] = useState(() => new Map<string, number>())
+  const [inputWrites] = useState(() => new Map<number, Promise<void>>())
+  useEffect(() => () => {
+    resetTimers.forEach(timer => window.clearTimeout(timer))
+    resetTimers.clear()
+  }, [resetTimers])
   const [theme, setTheme] = useState<Theme>(() => {
     try { return localStorage.getItem(themeKey) === 'dark' ? 'dark' : 'light' }
     catch { return 'light' }
@@ -93,6 +100,7 @@ export function App() {
   useEffect(() => {
     function key(e: KeyboardEvent) {
       if (panel || !e.ctrlKey || !['ArrowLeft', 'ArrowRight'].includes(e.key)) return
+      if (e.target instanceof HTMLInputElement) return
       e.preventDefault()
       switchBy(e.key === 'ArrowRight' ? 1 : -1)
     }
@@ -158,6 +166,7 @@ export function App() {
     const alignment = cardAppearance(widget.appearance)
     return <div className="widget-content" data-horizontal={alignment.horizontalAlign} data-vertical={alignment.verticalAlign}>
       {template ? <TemplateCard key={template.revision} template={template} instance={widget}
+        resetTimers={resetTimers} inputWrites={inputWrites}
         active={desktop?.id === widget.desktop_id && panel?.mode !== 'builder'} patch={patchRuntime} /> : view(widget, 'Widget')}
       {capabilities.includes('details') && <button onClick={() => setPanel({ mode: 'Details', id: widget.id })}>
         Подробнее
