@@ -4,5 +4,14 @@
   "name": "Демовиджет",
   "version": "1.1.0",
   "description": "Настраиваемая подпись, счётчик, переключатель и слайдер",
-  "capabilities": ["details", "settings"]
+  "capabilities": [
+    "details",
+    "settings"
+  ],
+  "translations": {
+    "en": {
+      "name": "Demo widget",
+      "description": "Custom label, counter, switch, and slider"
+    }
+  }
 }

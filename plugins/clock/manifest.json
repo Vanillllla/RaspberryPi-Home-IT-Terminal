@@ -4,5 +4,11 @@
   "name": "Часы",
   "version": "1.0.0",
   "description": "Местное время, дата и день недели",
-  "capabilities": []
+  "capabilities": [],
+  "translations": {
+    "en": {
+      "name": "Clock",
+      "description": "Local time, date, and day of the week"
+    }
+  }
 }

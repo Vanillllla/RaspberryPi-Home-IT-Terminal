@@ -2,9 +2,13 @@ import json
 from contextlib import asynccontextmanager
 from typing import Literal
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
+from fastapi.encoders import jsonable_encoder
+from fastapi.exceptions import RequestValidationError
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
+from .i18n import language, tr, validation_message
 from .discovery import discover
 from .layout import COLUMNS, DEFAULT_WIDTH, DEFAULT_HEIGHT, MAX_ROWS, Layout, row_count
 from .template_packages import discover_packages, router as packages_router
@@ -23,6 +27,22 @@ app = FastAPI(title="Pi Terminal", lifespan=lifespan)
 app.include_router(templates_router)
 app.include_router(packages_router)
 plugins = discover(app)
+
+
+@app.middleware("http")
+async def request_language(request: Request, call_next):
+    preference = request.headers.get("accept-language", "").split(",")[0].split(";")[0].strip().lower()
+    token = language.set("en" if preference.split("-")[0] == "en" else "ru")
+    try:
+        return await call_next(request)
+    finally:
+        language.reset(token)
+
+
+@app.exception_handler(RequestValidationError)
+async def invalid_request(_request: Request, error: RequestValidationError):
+    details = [{**issue, "msg": validation_message(issue)} for issue in error.errors()]
+    return JSONResponse(status_code=422, content={"detail": jsonable_encoder(details)})
 
 
 class DesktopName(BaseModel):
@@ -74,6 +94,7 @@ def read_state(conn):
     widgets = [instance(row) for row in conn.execute("SELECT * FROM widgets ORDER BY id")]
     desktops = [dict(row) for row in conn.execute("SELECT * FROM desktops ORDER BY id")]
     for desktop in desktops:
+        desktop["default_name"] = bool(desktop["default_name"])
         desktop["rows"] = row_count(w for w in widgets if w["desktop_id"] == desktop["id"])
     return {
         "columns": COLUMNS,
@@ -101,20 +122,20 @@ def create_desktop():
 def rename_desktop(desktop_id: int, body: DesktopName):
     name = body.name.strip()
     if not name:
-        raise HTTPException(422, "Введите название рабочего стола")
+        raise HTTPException(422, tr("Введите название рабочего стола", "Enter a desktop name"))
     with database(write=True) as conn:
-        if not conn.execute("UPDATE desktops SET name=? WHERE id=?", (name, desktop_id)).rowcount:
-            raise HTTPException(404, "Рабочий стол отсутствует")
-        return {"id": desktop_id, "name": name}
+        if not conn.execute("UPDATE desktops SET name=?, default_name=0 WHERE id=?", (name, desktop_id)).rowcount:
+            raise HTTPException(404, tr("Рабочий стол отсутствует", "Desktop not found"))
+        return {"id": desktop_id, "name": name, "default_name": False}
 
 
 @app.delete("/api/desktops/{desktop_id}")
 def delete_desktop(desktop_id: int):
     with database(write=True) as conn:
         if not conn.execute("SELECT 1 FROM desktops WHERE id=?", (desktop_id,)).fetchone():
-            raise HTTPException(404, "Рабочий стол отсутствует")
+            raise HTTPException(404, tr("Рабочий стол отсутствует", "Desktop not found"))
         if not conn.execute("SELECT 1 FROM desktops WHERE id<>? LIMIT 1", (desktop_id,)).fetchone():
-            raise HTTPException(409, "Последний рабочий стол удалить нельзя")
+            raise HTTPException(409, tr("Последний рабочий стол удалить нельзя", "The last desktop cannot be deleted"))
         conn.execute("DELETE FROM widgets WHERE desktop_id=?", (desktop_id,))
         conn.execute("DELETE FROM desktops WHERE id=?", (desktop_id,))
         return read_state(conn)
@@ -125,9 +146,9 @@ def create_widget(desktop_id: int, body: AddWidget):
     with database(write=True) as conn:
         template = conn.execute("SELECT definition FROM templates WHERE id=?", (body.plugin_id,)).fetchone()
         if body.plugin_id not in plugins and template is None:
-            raise HTTPException(404, "Плагин или шаблон недоступен")
+            raise HTTPException(404, tr("Плагин или шаблон недоступен", "Plugin or template unavailable"))
         if not conn.execute("SELECT id FROM desktops WHERE id=?", (desktop_id,)).fetchone():
-            raise HTTPException(404, "Рабочий стол отсутствует")
+            raise HTTPException(404, tr("Рабочий стол отсутствует", "Desktop not found"))
         definition = json.loads(template["definition"]) if template else {}
         width = definition.get("defaultWidth", DEFAULT_WIDTH)
         height = definition.get("defaultHeight", DEFAULT_HEIGHT)
@@ -135,7 +156,7 @@ def create_widget(desktop_id: int, body: AddWidget):
         slot = next((s for s in range(layout.rows * COLUMNS)
                      if not layout.conflict(s, width, height)), None)
         if slot is None:
-            raise HTTPException(409, "Нет свободного места для виджета")
+            raise HTTPException(409, tr("Нет свободного места для виджета", "There is no room for the widget"))
         widget_id = conn.execute("UPDATE widget_sequence SET last_id=last_id+1 RETURNING last_id").fetchone()[0]
         row = conn.execute(
             "INSERT INTO widgets(id, desktop_id, plugin_id, slot, width, height) VALUES (?, ?, ?, ?, ?, ?) RETURNING *",
@@ -147,7 +168,7 @@ def create_widget(desktop_id: int, body: AddWidget):
 def update_layout(conn, widget_id, *, rows, slot=None, size=None):
     w = conn.execute("SELECT * FROM widgets WHERE id=?", (widget_id,)).fetchone()
     if w is None:
-        raise HTTPException(404, "Экземпляр отсутствует")
+        raise HTTPException(404, tr("Экземпляр отсутствует", "Widget instance not found"))
     slot = w["slot"] if slot is None else slot
     width, height = (size.width, size.height) if size else (w["width"], w["height"])
     reason = Layout(conn, w["desktop_id"], rows=rows, exclude=widget_id).conflict(slot, width, height)
@@ -191,7 +212,7 @@ def align_content(widget_id: int, body: ContentAlignment):
             (body.horizontalAlign, body.verticalAlign, widget_id),
         )
         if not updated.rowcount:
-            raise HTTPException(404, "Экземпляр отсутствует")
+            raise HTTPException(404, tr("Экземпляр отсутствует", "Widget instance not found"))
     return body
 
 
@@ -200,7 +221,7 @@ def save_settings(widget_id: int, body: Settings):
     with database(write=True) as conn:
         if not conn.execute("UPDATE widgets SET settings=? WHERE id=?",
                             (json.dumps(body.settings), widget_id)).rowcount:
-            raise HTTPException(404, "Экземпляр отсутствует")
+            raise HTTPException(404, tr("Экземпляр отсутствует", "Widget instance not found"))
     return body
 
 
@@ -208,5 +229,5 @@ def save_settings(widget_id: int, body: Settings):
 def delete_widget(widget_id: int):
     with database(write=True) as conn:
         if not conn.execute("DELETE FROM widgets WHERE id=?", (widget_id,)).rowcount:
-            raise HTTPException(404, "Экземпляр отсутствует")
+            raise HTTPException(404, tr("Экземпляр отсутствует", "Widget instance not found"))
     return {"id": widget_id}

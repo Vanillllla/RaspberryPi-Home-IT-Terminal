@@ -1,11 +1,13 @@
+import type { Translate } from '../i18n'
+
 export const kinds = {
   text: 'Текст', button: 'Кнопка', switch: 'Переключатель', slider: 'Слайдер', indicator: 'Индикатор состояния',
   input: 'Поле ввода',
-}
+} as const
 export const actionKinds = {
   time: 'Текущее время', reach: 'Проверка доступности', http: 'HTTP GET', python: 'Python',
-}
-export const colors = { green: 'Зелёный', yellow: 'Жёлтый', red: 'Красный' }
+} as const
+export const colors = { green: 'Зелёный', yellow: 'Жёлтый', red: 'Красный' } as const
 export type Kind = keyof typeof kinds
 export type Color = keyof typeof colors
 export type ActionKind = keyof typeof actionKinds
@@ -16,7 +18,7 @@ export const inputFormats = {
   ipv4: { label: 'IPv4', placeholder: 'Введите IP-адрес' },
   date: { label: 'Дата', placeholder: 'Выберите дату' },
   time: { label: 'Время', placeholder: 'Выберите время' },
-}
+} as const
 export type Inputs = Record<string, InputValue>
 export type Outputs = Record<string, string>
 
@@ -27,6 +29,7 @@ export interface Frame extends Cell { width: number; height: number }
 export const fontFamilies = { system: 'inherit', serif: 'Georgia, serif', monospace: 'monospace' }
 
 export interface Item {
+  defaultLabel?: boolean
   inputMode?: keyof typeof inputFormats
   placeholder?: string
   resetCommand?: string
@@ -39,6 +42,7 @@ export interface Item {
   minimum: number; maximum: number; step: number; initial: number
 }
 export interface Action {
+  defaultName?: boolean
   id: string; kind: ActionKind; name: string; trigger: 'command' | 'timer'; command: string; interval: number
   host: string; port: number | null; url: string; path: string; code: string
   targets: { element: string; field: string }[]
@@ -50,14 +54,14 @@ export function randomKey(bytes = 16) {
   // getRandomValues also works on a LAN connection without HTTPS.
   return Array.from(crypto.getRandomValues(new Uint8Array(bytes)), b => b.toString(16).padStart(2, '0')).join('')
 }
-export function newItem(kind: Kind): Item {
-  return { id: 'e' + randomKey(5), kind, label: kinds[kind], command: '', checked: false,
+export function newItem(kind: Kind, t: Translate): Item {
+  return { id: 'e' + randomKey(5), kind, label: t(kinds[kind]), defaultLabel: true, command: '', checked: false,
     minimum: 0, maximum: 100, step: 1, initial: 0, color: 'green' }
 }
-export function newAction(kind: ActionKind): Action {
-  return { id: 'a' + randomKey(5), kind, name: actionKinds[kind], trigger: kind === 'time' ? 'timer' : 'command',
+export function newAction(kind: ActionKind, t: Translate): Action {
+  return { id: 'a' + randomKey(5), kind, name: t(actionKinds[kind]), defaultName: true, trigger: kind === 'time' ? 'timer' : 'command',
     command: 'refresh', interval: 1, host: '', port: null, url: '', path: '',
-    code: 'def run(context):\n    return {"text": "Доступен", "color": "green"}', targets: [] }
+    code: `def run(context):\n    return {"text": "${t('Доступен')}", "color": "green"}`, targets: [] }
 }
 
 export function unusedCommand(draft: Draft) {
@@ -71,8 +75,17 @@ export function unusedCommand(draft: Draft) {
   return 'refresh-' + number
 }
 
-export function actionLabel(action: Action) {
-  return action.trigger === 'command' && action.command ? action.name + ' · ' + action.command : action.name
+export function itemLabel(item: Item, t: Translate) {
+  return item.defaultLabel ? t(kinds[item.kind]) : item.label
+}
+
+export function actionName(action: Action, t: Translate) {
+  return action.defaultName ? t(actionKinds[action.kind]) : action.name
+}
+
+export function actionLabel(action: Action, t: Translate) {
+  const name = actionName(action, t)
+  return action.trigger === 'command' && action.command ? name + ' · ' + action.command : name
 }
 
 export function contextExpression(id: string) {

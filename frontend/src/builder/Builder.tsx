@@ -1,3 +1,4 @@
+import { useTranslation } from '../i18n'
 import { useLayoutEffect, useRef, useState, type KeyboardEvent, type CSSProperties } from 'react'
 import { api } from '../api'
 import { canPlace, editableDraft, frameStyle, ElementLayout } from './ElementLayout'
@@ -6,7 +7,7 @@ import { ElementView } from './TemplateCard'
 import { TemplateImport } from './TemplateImport'
 import { ActionHelp } from './ActionHelp'
 import { ActionEditor } from './ActionEditor'
-import { actionKinds, actionLabel, colors, contextExpression, emptyDraft, inputFormats, kinds, newAction, newItem, randomKey, subdivisions, unusedCommand, type ActionKind, type Color,
+import { actionKinds, actionLabel, actionName, itemLabel, colors, contextExpression, emptyDraft, inputFormats, kinds, newAction, newItem, randomKey, subdivisions, unusedCommand, type ActionKind, type Color,
   type Action, type Draft, type Frame, type Item, type Kind, type Template } from './model'
 import './builder.css'
 
@@ -51,6 +52,7 @@ interface Props {
 }
 
 export function Builder({ cellSize, columns, maxRows, templates, busy, setBusy, imported, saved, deleted }: Props) {
+  const { t } = useTranslation()
   const [draft, setDraft] = useState<Draft>(emptyDraft)
   const [templateId, setTemplateId] = useState('')
   const [creationKey, setCreationKey] = useState(() => randomKey())
@@ -96,7 +98,7 @@ export function Builder({ cellSize, columns, maxRows, templates, busy, setBusy, 
     try {
       await copyExpression(expression, origin)
     } catch {
-      setError('Не удалось скопировать выражение. Скопируйте вручную ' + expression)
+      setError(t('Не удалось скопировать выражение. Скопируйте вручную {expression}', { expression }))
     }
   }
   function place(element: Item, frame: Frame) {
@@ -109,7 +111,7 @@ export function Builder({ cellSize, columns, maxRows, templates, busy, setBusy, 
   function fromPalette(kind: Kind) {
     const sizes: Record<Kind, [number, number]> = { text: [6, 3], button: [6, 3], indicator: [2, 2], switch: [9, 3], slider: [10, 4], input: [14, 3] }
     const [w, h] = sizes[kind]
-    return { ...newItem(kind), frame: { x: 0, y: 0, width: Math.min(w, gridWidth), height: Math.min(h, gridHeight) } }
+    return { ...newItem(kind, t), frame: { x: 0, y: 0, width: Math.min(w, gridWidth), height: Math.min(h, gridHeight) } }
   }
   function add(kind: Kind) {
     const element = fromPalette(kind)
@@ -119,7 +121,7 @@ export function Builder({ cellSize, columns, maxRows, templates, busy, setBusy, 
         if (canPlace(element.id, frame, items, gridWidth, gridHeight)) return place(element, frame)
       }
     }
-    setError('Для элемента нет свободного места. Уменьшите соседние элементы или увеличьте шаблон.')
+    setError(t('Для элемента нет свободного места. Уменьшите соседние элементы или увеличьте шаблон.'))
   }
   function arrow(e: KeyboardEvent, element: Item, resize: boolean) {
     const steps: Record<string, [number, number]> = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] }
@@ -134,7 +136,7 @@ export function Builder({ cellSize, columns, maxRows, templates, busy, setBusy, 
   function change(delta: Partial<Draft>) {
     if ((delta.defaultWidth || delta.defaultHeight) && items.some(e => e.frame &&
       !canPlace(e.id, e.frame, items, (delta.defaultWidth ?? width) * subdivisions, (delta.defaultHeight ?? height) * subdivisions))) {
-      setError('Сначала переместите закреплённые элементы в границы нового размера')
+      setError(t('Сначала переместите закреплённые элементы в границы нового размера'))
       return
     }
     setError('')
@@ -157,7 +159,7 @@ export function Builder({ cellSize, columns, maxRows, templates, busy, setBusy, 
     ] })) })
   }
   function createUpdate(trigger: Action['trigger']) {
-    const base = source ?? newAction('time')
+    const base = source ?? newAction('time', t)
     const previousTarget = source?.targets.find(t => t.element === elementId)
     const next = {
       ...base,
@@ -181,22 +183,22 @@ export function Builder({ cellSize, columns, maxRows, templates, busy, setBusy, 
   }
   async function save() {
     if (!Number.isInteger(width) || width < 1 || width > columns || !Number.isInteger(height) || height < 1 || height > maxRows) {
-      setError('Проверьте ширину и высоту шаблона в клетках')
+      setError(t('Проверьте ширину и высоту шаблона в клетках'))
       return
     }
     if (items.some(e => e.fontSize !== undefined && (!Number.isInteger(e.fontSize) || e.fontSize < 1 || e.fontSize > 144))) {
-      setError('Размер шрифта должен быть целым числом от 1 до 144 пт')
+      setError(t('Размер шрифта должен быть целым числом от 1 до 144 пт'))
       return
     }
     setError(''); setBusy(true)
     try {
       const result = await api<Template>(templateId ? 'templates/' + templateId : 'templates?creation_key=' + creationKey, templateId ? 'PUT' : 'POST', draft)
       await saved(result)
-    } catch (e) { setError(e instanceof Error ? e.message : 'Ошибка сохранения шаблона') }
+    } catch (e) { setError(e instanceof Error ? e.message : t('Ошибка сохранения шаблона')) }
     finally { setBusy(false) }
   }
   async function remove(template: Template) {
-    const prompt = 'Удалить шаблон «' + template.name + '»? Размещённые карточки останутся на столе и будут показывать заглушку.'
+    const prompt = t('Удалить шаблон «{name}»? Размещённые карточки останутся на столе и будут показывать заглушку.', { name: template.name })
     if (busy || !window.confirm(prompt)) return
     setError('')
     setBusy(true)
@@ -205,53 +207,53 @@ export function Builder({ cellSize, columns, maxRows, templates, busy, setBusy, 
       deleted(template.id)
       open('')
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Не удалось удалить шаблон')
+      setError(e instanceof Error ? e.message : t('Не удалось удалить шаблон'))
     } finally {
       setBusy(false)
     }
   }
   return <div className="builder" inert={busy} aria-busy={busy} onPointerDownCapture={drag.cancelClick} onKeyDownCapture={drag.cancelClick}>
     <div className="builder-bar">
-      <label>Шаблон<select aria-label="Шаблон" value={templateId} onChange={e => open(e.target.value)}>
-        <option value="">Новый шаблон</option>{templates.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+      <label>{t('Шаблон')}<select aria-label={t('Шаблон')} value={templateId} onChange={e => open(e.target.value)}>
+        <option value="">{t('Новый шаблон')}</option>{templates.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
       </select></label>
-      <label>Название шаблона<input value={draft.name} maxLength={100} placeholder="Например, Домашний сервер"
+      <label>{t('Название шаблона')}<input value={draft.name} maxLength={100} placeholder={t('Например, Домашний сервер')}
         onChange={e => change({ name: e.target.value })} /></label>
-      <label>Описание<input value={draft.description ?? ''} maxLength={2000}
+      <label>{t('Описание')}<input value={draft.description ?? ''} maxLength={2000}
         onChange={e => change({ description: e.target.value })} /></label>
       <TemplateImport key={templateId} setBusy={setBusy} imported={imported} open={open} />
-      <button className="primary" disabled={busy} onClick={save}>Сохранить шаблон</button>
-      {selectedTemplate && <button disabled={busy} onClick={() => void remove(selectedTemplate)}>Удалить шаблон</button>}
+      <button className="primary" disabled={busy} onClick={save}>{t('Сохранить шаблон')}</button>
+      {selectedTemplate && <button disabled={busy} onClick={() => void remove(selectedTemplate)}>{t('Удалить шаблон')}</button>}
     </div>
     {error && <p role="alert">{error}</p>}
     <div className="builder-layout">
-      <section className="builder-palette"><h3>Элементы</h3>
-        {(Object.keys(kinds) as Kind[]).map(k => <button key={k} {...drag.handlers('add', () => fromPalette(k), () => add(k))}><span aria-hidden="true">{symbols[k]}</span>{kinds[k]}</button>)}
+      <section className="builder-palette"><h3>{t('Элементы')}</h3>
+        {(Object.keys(kinds) as Kind[]).map(k => <button key={k} {...drag.handlers('add', () => fromPalette(k), () => add(k))}><span aria-hidden="true">{symbols[k]}</span>{t(kinds[k])}</button>)}
       </section>
-      <section className="builder-canvas"><h3>Предпросмотр</h3>
+      <section className="builder-canvas"><h3>{t('Предпросмотр')}</h3>
         <div className="preview-size">
-          <label>Ширина в клетках<input type="number" min={1} max={columns} value={width || ''}
+          <label>{t('Ширина в клетках')}<input type="number" min={1} max={columns} value={width || ''}
             onChange={e => change({ defaultWidth: Number(e.target.value) })} /></label>
-          <label>Высота в клетках<input type="number" min={1} max={maxRows} value={height || ''}
+          <label>{t('Высота в клетках')}<input type="number" min={1} max={maxRows} value={height || ''}
             onChange={e => change({ defaultHeight: Number(e.target.value) })} /></label>
-          <label><input type="checkbox" checked={guides} onChange={e => setGuides(e.target.checked)} /> Сетка</label>
+          <label><input type="checkbox" checked={guides} onChange={e => setGuides(e.target.checked)} /> {t('Сетка')}</label>
         </div>
         <div className="preview-stage" ref={stage}>
           <div className="builder-sheet" data-guides={guides} style={{ width: Math.max(1, Math.min(width, columns)) * cellSize,
             height: Math.max(1, Math.min(height, maxRows)) * cellSize, zoom: scale } as CSSProperties}>
             <div className="builder-sheet-frame">
-              <h4>{draft.name || 'Новый виджет'}</h4>
+              <h4>{draft.name || t('Новый виджет')}</h4>
               <div className="preview-body" ref={surface} style={{ '--columns': gridWidth, '--rows': gridHeight } as CSSProperties}>
                 <ElementLayout rows={draft.rows} width={gridWidth / subdivisions} height={gridHeight / subdivisions} render={el =>
                   <div className="builder-preview-cell" data-dragging={drag.target?.item.id === el.id}>
                     <div className="frame-content" inert><ElementView item={el} /></div>
-                    <button className="element-select" aria-label={'Выбрать ' + kinds[el.kind] + ' · ' + el.label} aria-pressed={el.id === elementId}
-                      title="Дважды нажмите, чтобы скопировать выражение Python"
+                    <button className="element-select" aria-label={t('Выбрать {kind} · {label}', { kind: t(kinds[el.kind]), label: itemLabel(el, t) })} aria-pressed={el.id === elementId}
+                      title={t('Дважды нажмите, чтобы скопировать выражение Python')}
                       onMouseDown={e => { if (tab === 'actions') e.preventDefault() }}
                       onKeyDown={e => arrow(e, el, false)}
                       {...drag.handlers('move', () => el, () => select(el.id), button => void copyContext(el.id, button))} />
-                    {el.id === elementId && <button className="resize-handle" aria-label="Изменить размер элемента"
-                      title="Потяните за угол или используйте стрелки" onKeyDown={e => arrow(e, el, true)}
+                    {el.id === elementId && <button className="resize-handle" aria-label={t('Изменить размер элемента')}
+                      title={t('Потяните за угол или используйте стрелки')} onKeyDown={e => arrow(e, el, true)}
                       {...drag.handlers('resize', () => el, () => select(el.id))} />}
                   </div>} />
                 {drag.target && <div aria-hidden="true" className="element-drop" data-valid={drag.target.valid}
@@ -264,77 +266,77 @@ export function Builder({ cellSize, columns, maxRows, templates, busy, setBusy, 
         </div>
       </section>
       <section className="builder-inspector"><div className="builder-tabs">
-        <button aria-pressed={tab === 'element'} onClick={() => setTab('element')}>Свойства</button>
-        <button aria-pressed={tab === 'actions'} onClick={() => { if (tab !== 'actions') showActions() }}>Действия</button>
-        <button className="action-help-toggle" type="button" title="Справка по API действий" aria-label="Справка по API действий"
+        <button aria-pressed={tab === 'element'} onClick={() => setTab('element')}>{t('Свойства')}</button>
+        <button aria-pressed={tab === 'actions'} onClick={() => { if (tab !== 'actions') showActions() }}>{t('Действия')}</button>
+        <button className="action-help-toggle" type="button" title={t('Справка по API действий')} aria-label={t('Справка по API действий')}
           aria-expanded={helpOpen} aria-controls="builder-action-help" onClick={() => setHelpOpen(open => !open)}>i</button>
       </div>
       {helpOpen && <ActionHelp switchId={items.find(e => e.kind === 'switch')?.id} />}
       {tab === 'element' && (item ? <>
-        <h4>{kinds[item.kind]}</h4>
-        <label>Подпись<input value={item.label} onChange={e => updateItem({ label: e.target.value })} /></label>
+        <h4>{t(kinds[item.kind])}</h4>
+        <label>{t('Подпись')}<input value={itemLabel(item, t)} onChange={e => updateItem({ label: e.target.value, defaultLabel: false })} /></label>
         {item.kind === 'input' && <>
-          <label>Формат поля<select value={item.inputMode ?? 'text'}
+          <label>{t('Формат поля')}<select value={item.inputMode ?? 'text'}
             onChange={e => updateItem({ inputMode: e.target.value as Item['inputMode'] })}>
-            {Object.entries(inputFormats).map(([format, { label }]) => <option key={format} value={format}>{label}</option>)}
+            {Object.entries(inputFormats).map(([format, { label }]) => <option key={format} value={format}>{t(label)}</option>)}
           </select></label>
-          <label>Подсказка<input maxLength={200} value={item.placeholder ?? ''}
-            placeholder={inputFormats[item.inputMode ?? 'text'].placeholder}
+          <label>{t('Подсказка')}<input maxLength={200} value={item.placeholder ?? ''}
+            placeholder={t(inputFormats[item.inputMode ?? 'text'].placeholder)}
             onChange={e => updateItem({ placeholder: e.target.value })} /></label>
-          <label>Сброс по команде<input maxLength={100} value={item.resetCommand ?? ''}
-            placeholder="Без сброса" onChange={e => updateItem({ resetCommand: e.target.value })} /></label>
-          <small>Ключ значения для Python · <code>{item.id}</code></small>
+          <label>{t('Сброс по команде')}<input maxLength={100} value={item.resetCommand ?? ''}
+            placeholder={t('Без сброса')} onChange={e => updateItem({ resetCommand: e.target.value })} /></label>
+          <small>{t('Ключ значения для Python ·')} <code>{item.id}</code></small>
         </>}
         {['button', 'switch', 'slider'].includes(item.kind) && <>
-          <label>Отправить команду<input value={item.command} placeholder="Например, refresh" onChange={e => updateItem({ command: e.target.value })} /></label>
-          {item.command && <small>Действия · {sentActions.map(a => a.name).join(', ') || 'не назначены'}</small>}
+          <label>{t('Отправить команду')}<input value={item.command} placeholder={t('Например, refresh')} onChange={e => updateItem({ command: e.target.value })} /></label>
+          {item.command && <small>{t('Действия ·')} {sentActions.map(a => actionName(a, t)).join(', ') || t('не назначены')}</small>}
         </>}
         {item.kind === 'switch' && <label className="builder-check"><input type="checkbox" checked={item.checked}
-          onChange={e => updateItem({ checked: e.target.checked })} />Включён изначально</label>}
+          onChange={e => updateItem({ checked: e.target.checked })} />{t('Включён изначально')}</label>}
         {item.kind === 'slider' && (['minimum', 'maximum', 'step', 'initial'] as const).map((key, i) =>
-          <label key={key}>{['Минимум', 'Максимум', 'Шаг', 'Начальное значение'][i]}
+          <label key={key}>{[t('Минимум'), t('Максимум'), t('Шаг'), t('Начальное значение')][i]}
             <input type="number" step="any" value={item[key]} onChange={e => updateItem({ [key]: Number(e.target.value) })} /></label>)}
-        {item.kind === 'indicator' && <label>Начальный цвет<select value={item.color} onChange={e => updateItem({ color: e.target.value as Color })}>
-          {Object.entries(colors).map(([k,v]) => <option value={k} key={k}>{v}</option>)}</select></label>}
+        {item.kind === 'indicator' && <label>{t('Начальный цвет')}<select value={item.color} onChange={e => updateItem({ color: e.target.value as Color })}>
+          {Object.entries(colors).map(([k,v]) => <option value={k} key={k}>{t(v)}</option>)}</select></label>}
         {['text', 'indicator'].includes(item.kind) && <>
-          <label>Обновление<select aria-label="Обновление" value={source?.trigger ?? 'static'} onChange={e => setMode(e.target.value as Action['trigger'] | 'static')}>
-            <option value="static">Без обновления</option><option value="timer">По таймеру</option><option value="command">По команде</option>
+          <label>{t('Обновление')}<select aria-label={t('Обновление')} value={source?.trigger ?? 'static'} onChange={e => setMode(e.target.value as Action['trigger'] | 'static')}>
+            <option value="static">{t('Без обновления')}</option><option value="timer">{t('По таймеру')}</option><option value="command">{t('По команде')}</option>
           </select></label>
-          {source && <label>Действие обновления<select value={source.id} onChange={e => bind(e.target.value)}>
-            {draft.actions.filter(a => a.trigger === source.trigger).map(a => <option key={a.id} value={a.id}>{actionLabel(a)}</option>)}
+          {source && <label>{t('Действие обновления')}<select value={source.id} onChange={e => bind(e.target.value)}>
+            {draft.actions.filter(a => a.trigger === source.trigger).map(a => <option key={a.id} value={a.id}>{actionLabel(a, t)}</option>)}
           </select></label>}
-          {source && <button onClick={() => showActions(source.id)}>Настроить действия</button>}
+          {source && <button onClick={() => showActions(source.id)}>{t('Настроить действия')}</button>}
           {source && source.targets.length > 1 && <button onClick={() => showActions(createUpdate(source.trigger))}>
-            Создать отдельное действие
+            {t('Создать отдельное действие')}
           </button>}
         </>}
         {item.kind !== 'indicator' && <>
-          <label>Шрифт<select value={item.fontFamily ?? 'system'}
+          <label>{t('Шрифт')}<select value={item.fontFamily ?? 'system'}
             onChange={e => updateItem({ fontFamily: e.target.value as Item['fontFamily'] })}>
-            <option value="system">Системный</option><option value="serif">С засечками</option>
-            <option value="monospace">Моноширинный</option>
+            <option value="system">{t('Системный')}</option><option value="serif">{t('С засечками')}</option>
+            <option value="monospace">{t('Моноширинный')}</option>
           </select></label>
-          <label>Размер шрифта, пт<input type="number" min={1} max={144} value={item.fontSize ?? 12}
+          <label>{t('Размер шрифта, пт')}<input type="number" min={1} max={144} value={item.fontSize ?? 12}
             onChange={e => updateItem({ fontSize: e.target.value ? Number(e.target.value) : undefined })} /></label>
         </>}
-        <button onClick={() => { change({ rows: [items.filter(e => e.id !== elementId)] }); setElement('') }}>Удалить элемент</button>
-      </> : <p>Выберите элемент в предпросмотре.</p>)}
+        <button onClick={() => { change({ rows: [items.filter(e => e.id !== elementId)] }); setElement('') }}>{t('Удалить элемент')}</button>
+      </> : <p>{t('Выберите элемент в предпросмотре.')}</p>)}
       {tab === 'actions' && <>
-        <label>Тип действия<select value={kind} onChange={e => setKind(e.target.value as ActionKind)}>
-          {Object.entries(actionKinds).map(([k,v]) => <option key={k} value={k}>{v}</option>)}</select></label>
+        <label>{t('Тип действия')}<select value={kind} onChange={e => setKind(e.target.value as ActionKind)}>
+          {Object.entries(actionKinds).map(([k,v]) => <option key={k} value={k}>{t(v)}</option>)}</select></label>
         <button onClick={() => {
-          const a = { ...newAction(kind), command: unusedCommand(draft) }
+          const a = { ...newAction(kind, t), command: unusedCommand(draft) }
           change({ actions: [...draft.actions, a] }); setAction(a.id)
-        }}>Добавить действие</button>
-        {!!draft.actions.length && <label>Действие<select value={actionId} onChange={e => setAction(e.target.value)}>
-          <option value="">Выберите действие</option>
-          {draft.actions.map(a => <option key={a.id} value={a.id}>{actionLabel(a)}</option>)}</select></label>}
+        }}>{t('Добавить действие')}</button>
+        {!!draft.actions.length && <label>{t('Действие')}<select value={actionId} onChange={e => setAction(e.target.value)}>
+          <option value="">{t('Выберите действие')}</option>
+          {draft.actions.map(a => <option key={a.id} value={a.id}>{actionLabel(a, t)}</option>)}</select></label>}
         {action && <><ActionEditor action={action} items={items} update={delta =>
           change({ actions: draft.actions.map(a => a.id === action.id ? { ...a, ...delta } : a) })} />
           <button onClick={() => {
             const actions = draft.actions.filter(a => a.id !== actionId)
             change({ actions }); setAction('')
-          }}>Удалить действие</button></>}
+          }}>{t('Удалить действие')}</button></>}
       </>}
       </section>
     </div>

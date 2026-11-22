@@ -1,3 +1,4 @@
+import { useTranslation } from '../i18n'
 import { Fragment, useRef } from 'react'
 import { inputFormats, type Item } from './model'
 
@@ -10,10 +11,11 @@ interface Props {
 const validOctet = (value: string) => /^[0-9]{0,3}$/.test(value) && Number(value) <= 255
 
 export function WidgetInput({ item, value, change }: Props) {
+  const { t } = useTranslation()
   const fields = useRef<HTMLDivElement>(null)
   const mode = item.inputMode ?? 'text'
-  const placeholder = item.placeholder || inputFormats[mode].placeholder
-  const label = item.label && item.label !== 'Поле ввода' ? item.label : placeholder
+  const placeholder = item.placeholder || t(inputFormats[mode].placeholder)
+  const label = item.defaultLabel || !item.label || item.label === 'Поле ввода' ? placeholder : item.label
   if (mode === 'date' || mode === 'time') return <div className="built-calendar-input">
     <input className="built-input" type={mode} aria-label={label} value={value}
       max={mode === 'date' ? '9999-12-31' : undefined}
@@ -43,7 +45,7 @@ export function WidgetInput({ item, value, change }: Props) {
     <div ref={fields} className="ipv4-octets">
       {octets.map((octet, index) => <Fragment key={index}>
         {index > 0 && <span aria-hidden="true">.</span>}
-        <input type="text" inputMode="numeric" autoComplete="off" aria-label={label + ' · октет ' + (index + 1)}
+        <input type="text" inputMode="numeric" autoComplete="off" aria-label={t('{label} · октет {number}', { label, number: index + 1 })}
           maxLength={3} value={octet} onChange={event => {
             const next = event.currentTarget.value
             if (!validOctet(next)) return

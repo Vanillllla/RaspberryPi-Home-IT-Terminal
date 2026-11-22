@@ -1,3 +1,4 @@
+import { useTranslation } from './i18n'
 import { cardAppearance } from './appearance'
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type PointerEvent, type ReactNode } from 'react'
 import { placementError } from './layout'
@@ -37,6 +38,7 @@ const controlSelector = [
 ].join(',')
 
 export function Grid({ widgets, columns, maxRows, reportRows, reportCellSize, interactive, title, openActions, render, move }: Props) {
+  const { t } = useTranslation()
   const board = useRef<HTMLDivElement>(null)
   const viewport = useRef<HTMLDivElement>(null)
   const [area, setArea] = useState({ width: 0, height: 0 })
@@ -209,10 +211,10 @@ export function Grid({ widgets, columns, maxRows, reportRows, reportCellSize, in
   }
 
   return <>
-    <div className="grid-scroll-controls" aria-label="Прокрутка сетки">
-      <button aria-label="Прокрутить сетку влево" onClick={() => viewport.current?.scrollBy({ left: -240 })}>←</button>
-      <span>Область сетки</span>
-      <button aria-label="Прокрутить сетку вправо" onClick={() => viewport.current?.scrollBy({ left: 240 })}>→</button>
+    <div className="grid-scroll-controls" aria-label={t('Прокрутка сетки')}>
+      <button aria-label={t('Прокрутить сетку влево')} onClick={() => viewport.current?.scrollBy({ left: -240 })}>←</button>
+      <span>{t('Область сетки')}</span>
+      <button aria-label={t('Прокрутить сетку вправо')} onClick={() => viewport.current?.scrollBy({ left: 240 })}>→</button>
     </div>
     <div className="board-scroll" ref={viewport}>
       <div ref={board} className={'board' + (selected ? ' moving' : '')}
@@ -233,8 +235,8 @@ export function Grid({ widgets, columns, maxRows, reportRows, reportCellSize, in
             }}>
             <div className="card-heading">
               <button className="handle" disabled={!interactive || pending !== null}
-                aria-label={'Переместить: ' + title(w)} aria-pressed={selected?.id === w.id}
-                title="Потяните для переноса или нажмите и выберите ячейку"
+                aria-label={t('Переместить: {title}', { title: title(w) })} aria-pressed={selected?.id === w.id}
+                title={t('Потяните для переноса или нажмите и выберите ячейку')}
                 onClick={() => {
                   setPicked(picked === w.id ? null : w.id)
                   setTarget(null)
@@ -242,15 +244,15 @@ export function Grid({ widgets, columns, maxRows, reportRows, reportCellSize, in
                 <span className="grip" aria-hidden="true">⠿</span>
               </button>
               <span className="card-title" title={title(w)}><span data-palette={cardAppearance(w.appearance).titlePalette}>{title(w)}</span></span>
-              <button className="widget-actions" aria-label="Действия с виджетом" aria-haspopup="dialog"
-                title="Действия с виджетом" onClick={() => openActions(w.id)}>⋯</button>
+              <button className="widget-actions" aria-label={t('Действия с виджетом')} aria-haspopup="dialog"
+                title={t('Действия с виджетом')} onClick={() => openActions(w.id)}>⋯</button>
             </div>
             <div className="widget-scroll">{render(w)}</div>
           </article>
         </div>)}
         {picked !== null && selected && Array.from({ length: columns * rows }, (_, slot) =>
           slot !== selected.slot && fits(selected, slot % columns, Math.floor(slot / columns)) &&
-          <button className="drop" key={slot} style={geometry(slot, 1, 1)} aria-label={'В ячейку ' + (slot + 1)}
+          <button className="drop" key={slot} style={geometry(slot, 1, 1)} aria-label={t('В ячейку {number}', { number: slot + 1 })}
             onFocus={() => setTarget(slot)} onPointerEnter={() => setTarget(slot)}
             onClick={() => void finish(selected, slot)}>{slot + 1}</button>)}
       </div>

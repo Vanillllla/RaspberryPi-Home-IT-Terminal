@@ -1,9 +1,10 @@
+import { useTranslation } from '../i18n'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { api } from '../api'
 import { WidgetSlider, WidgetSwitch, type WidgetInstance } from '../plugin'
 import { ElementLayout } from './ElementLayout'
 import { WidgetInput } from './WidgetInput'
-import { colors, type Action, type Color, type InputValue, type Item, type Inputs, type Outputs, type Template } from './model'
+import { actionName, colors, itemLabel, type Action, type Color, type InputValue, type Item, type Inputs, type Outputs, type Template } from './model'
 
 function TextResult({ value }: { value: string }) {
   if (value.startsWith('{')) {
@@ -25,27 +26,29 @@ interface ElementProps {
   change?: (item: Item, value?: InputValue) => void
 }
 export function ElementView({ item, inputs = {}, outputs = {}, change }: ElementProps) {
+  const { t } = useTranslation()
+  const label = itemLabel(item, t)
   const value = inputs[item.id]
   switch (item.kind) {
     case 'input':
       return <WidgetInput item={item} value={typeof value === 'string' ? value : ''} change={v => change?.(item, v)} />
     case 'button':
-      return <button className="widget-button" type="button" onClick={() => change?.(item)}>{item.label}</button>
+      return <button className="widget-button" type="button" onClick={() => change?.(item)}>{label}</button>
     case 'switch':
-      return <WidgetSwitch label={item.label} checked={Boolean(value ?? item.checked)} onChange={v => change?.(item, v)} />
+      return <WidgetSwitch label={label} checked={Boolean(value ?? item.checked)} onChange={v => change?.(item, v)} />
     case 'slider':
-      return <label className="built-slider">{item.label && <span>{item.label}</span>}
-        <WidgetSlider label={item.label || 'Слайдер'} min={item.minimum} max={item.maximum} step={item.step}
+      return <label className="built-slider">{label && <span>{label}</span>}
+        <WidgetSlider label={label || t('Слайдер')} min={item.minimum} max={item.maximum} step={item.step}
           value={Number(value ?? item.initial)} onChange={v => change?.(item, v)} />
       </label>
     case 'indicator': {
       const color = (outputs[item.id] ?? item.color) as Color
-      return <span className="built-indicator" role="img" aria-label={item.label + ' — ' + colors[color]} title={item.label}>
+      return <span className="built-indicator" role="img" aria-label={label + ' — ' + t(colors[color])} title={label}>
         <i className="widget-status" data-color={color} /></span>
     }
     case 'text':
       return outputs[item.id] === undefined
-        ? <strong>{item.label}</strong>
+        ? <strong>{label}</strong>
         : <TextResult value={outputs[item.id]} />
   }
 }
@@ -58,6 +61,7 @@ interface Props {
 }
 
 export function TemplateCard({ template, instance, active, patch, resetTimers, inputWrites }: Props) {
+  const { t } = useTranslation()
   const inputs = (instance.settings.inputs ?? {}) as Inputs
   const outputs = (instance.settings.outputs ?? {}) as Outputs
   const latest = useRef({ inputs, outputs })
@@ -87,7 +91,7 @@ export function TemplateCard({ template, instance, active, patch, resetTimers, i
     const listeners = template.actions.filter(a => a.trigger === 'command' && a.command === command
       && (a.targets.length > 0 || a.kind === 'python'))
     const resets = template.rows.flat().filter(e => e.kind === 'input' && e.resetCommand === command)
-    if (fromScript && !listeners.length && !resets.length) throw new Error('Нет получателей команды «' + command + '»')
+    if (fromScript && !listeners.length && !resets.length) throw new Error(t('Нет получателей команды «{command}»', { command }))
     for (const field of resets) {
       const key = instance.id + ':' + field.id
       window.clearTimeout(resetTimers.get(key))
@@ -97,7 +101,7 @@ export function TemplateCard({ template, instance, active, patch, resetTimers, i
       }, 500))
     }
     return listeners
-  }, [instance.id, resetTimers, saveInput, template])
+  }, [instance.id, resetTimers, saveInput, template, t])
 
   function snapshot() {
     const inputs = { ...latest.current.inputs }
@@ -116,8 +120,8 @@ export function TemplateCard({ template, instance, active, patch, resetTimers, i
     let current = root
     async function step(action: Action, parents: string[]) {
       current = action
-      if (parents.includes(action.id)) throw new Error('Цикл команд в действии «' + action.name + '»')
-      if (++count > 64) throw new Error('В цепочке допускается до 64 запусков действий')
+      if (parents.includes(action.id)) throw new Error(t('Цикл команд в действии «{name}»', { name: actionName(action, t) }))
+      if (++count > 64) throw new Error(t('В цепочке допускается до 64 запусков действий'))
       const result = await api<RunResult>(base + '/actions/' + action.id, 'POST', { revision, ...state })
       if (result.skipped) return
       if (result.outputs) {
@@ -134,11 +138,11 @@ export function TemplateCard({ template, instance, active, patch, resetTimers, i
       await step(root, [])
     } catch (e) {
       const id = current.id
-      setMessages(old => ({ ...old, [id]: e instanceof Error ? e.message : 'Ошибка действия' }))
+      setMessages(old => ({ ...old, [id]: e instanceof Error ? e.message : t('Ошибка действия') }))
     } finally {
       if (timer) pendingTimers.current.delete(root.id)
     }
-  }, [base, instance.id, revision, patch, dispatch])
+  }, [base, instance.id, revision, patch, dispatch, t])
 
   useEffect(() => {
     if (!active) return
@@ -188,7 +192,9 @@ export function TemplateCard({ template, instance, active, patch, resetTimers, i
         const view = <ElementView item={item} inputs={inputs} outputs={outputs} change={change} />
         return item.frame ? <div className="frame-content">{view}</div> : view
       }} />
-    {Object.entries(messages).filter(([, message]) => message).map(([id, message]) =>
-      <p className="action-message" role="status" key={id}><b>{template.actions.find(a => a.id === id)?.name ?? 'Сохранение'}</b> · {message}</p>)}
+    {Object.entries(messages).filter(([, message]) => message).map(([id, message]) => {
+      const action = template.actions.find(a => a.id === id)
+      return <p className="action-message" role="status" key={id}><b>{action ? actionName(action, t) : t('Сохранение')}</b> · {message}</p>
+    })}
   </div>
 }

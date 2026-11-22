@@ -1,3 +1,4 @@
+import { desktopName, useTranslation } from './i18n'
 import { useEffect, useLayoutEffect, useRef } from 'react'
 import type { Desktop } from './api'
 
@@ -15,6 +16,7 @@ interface Props {
 }
 
 export function DesktopNavigation({ desktops, active, open, busy, error, setOpen, select, create, rename, remove }: Props) {
+  const { t } = useTranslation()
   const tab = useRef<HTMLButtonElement>(null)
   const current = useRef<HTMLButtonElement>(null)
   const start = useRef<{ id: number; x: number; y: number } | null>(null)
@@ -65,20 +67,20 @@ export function DesktopNavigation({ desktops, active, open, busy, error, setOpen
       onClick={e => {
         if (!e.detail || !moved.current) setOpen(!open)
       }}>
-      Рабочие столы <span className="tab-chevron" aria-hidden="true" />
+      {t('Рабочие столы')} <span className="tab-chevron" aria-hidden="true" />
     </button>
     {open && <div className="drawer-backdrop" onClick={close} />}
-    <nav id="desktop-drawer" aria-label="Рабочие столы" hidden={!open}>
+    <nav id="desktop-drawer" aria-label={t('Рабочие столы')} hidden={!open}>
       <div className="desktop-list">
         {desktops.map(d => <button key={d.id} ref={d.id === active.id ? current : undefined}
           aria-current={d.id === active.id ? 'page' : undefined}
-          onClick={() => { select(d.id); close() }}>{d.name}</button>)}
+          onClick={() => { select(d.id); close() }}>{desktopName(d, t)}</button>)}
       </div>
       <div className="desktop-actions">
-        <button disabled={busy} onClick={create}>Создать рабочий стол</button>
-        <button disabled={busy} onClick={rename} aria-haspopup="dialog">Переименовать</button>
+        <button disabled={busy} onClick={create}>{t('Создать рабочий стол')}</button>
+        <button disabled={busy} onClick={rename} aria-haspopup="dialog">{t('Переименовать')}</button>
         <button disabled={busy || desktops.length < 2} onClick={remove} aria-haspopup="dialog"
-          title={desktops.length === 1 ? 'Последний рабочий стол удалить нельзя' : undefined}>Удалить рабочий стол</button>
+          title={desktops.length === 1 ? t('Последний рабочий стол удалить нельзя') : undefined}>{t('Удалить рабочий стол')}</button>
       </div>
       {error && <p role="alert">{error}</p>}
     </nav>

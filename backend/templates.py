@@ -11,6 +11,7 @@ from uuid import UUID, uuid4
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, ConfigDict, Field
 
+from .i18n import tr
 from .actions import execute, get_field
 from .layout import COLUMNS, MAX_ROWS, DEFAULT_WIDTH, DEFAULT_HEIGHT
 from .storage import database
@@ -44,6 +45,7 @@ class Element(BaseModel):
     id: Id
     kind: Literal["text", "button", "switch", "slider", "indicator", "input"]
     label: str = Field(max_length=2000)
+    defaultLabel: bool = False
     frame: Frame | None = None
     fontFamily: Literal["system", "serif", "monospace"] = "system"
     fontSize: int = Field(default=12, strict=True, ge=1, le=144)
@@ -69,6 +71,7 @@ class Target(BaseModel):
 class Action(BaseModel):
     id: Id
     name: str = Field(min_length=1, max_length=100)
+    defaultName: bool = False
     kind: Literal["time", "reach", "http", "python"]
     trigger: Literal["command", "timer"]
     command: str = Field(default="", max_length=100)
@@ -100,56 +103,70 @@ class Definition(BaseModel):
         elements = self.elements()
         count = sum(map(len, self.rows))
         if not self.name.strip() or not count:
-            raise ValueError("Введите название и добавьте хотя бы один элемент")
+            raise ValueError(tr("Введите название и добавьте хотя бы один элемент", "Enter a name and add at least one element"))
         if len(elements) != count or count > 128:
-            raise ValueError("Нужны уникальные ID элементов (до 128 элементов)")
+            raise ValueError(tr("Нужны уникальные ID элементов (до 128 элементов)", "Element IDs must be unique (up to 128 elements)"))
         if len({a.id for a in self.actions}) != len(self.actions):
-            raise ValueError("ID действий должны быть уникальны")
+            raise ValueError(tr("ID действий должны быть уникальны", "Action IDs must be unique"))
         frames = [e.frame for e in elements.values() if e.frame is not None]
         if frames and (len(frames) != count or any(e.cell or e.span for e in elements.values())):
-            raise ValueError("Задайте frame для всех элементов без старых полей cell и span")
+            raise ValueError(tr("Задайте frame для всех элементов без старых полей cell и span", "Set frame for every element and omit the legacy cell and span fields"))
         for index, frame in enumerate(frames):
             if (frame.x + frame.width > self.defaultWidth * SUBDIVISIONS
                     or frame.y + frame.height > self.defaultHeight * SUBDIVISIONS):
-                raise ValueError("Элемент выходит за границы мелкой сетки")
+                raise ValueError(tr("Элемент выходит за границы мелкой сетки", "The element extends beyond the fine grid"))
             if any(frame.overlaps(other) for other in frames[:index]):
-                raise ValueError("Рамки элементов пересекаются")
+                raise ValueError(tr("Рамки элементов пересекаются", "Element frames overlap"))
         occupied = set()
         for e in elements.values():
             if e.cell is not None:
                 end = e.cell.x + (e.span or 1)
                 if end > self.defaultWidth or e.cell.y >= self.defaultHeight:
-                    raise ValueError(f"{e.label}: позиция выходит за границы шаблона")
+                    raise ValueError(tr(f"{e.label}: позиция выходит за границы шаблона", f"{e.label}: the position extends beyond the template"))
                 footprint = {(x, e.cell.y) for x in range(e.cell.x, end)}
                 if occupied & footprint:
-                    raise ValueError(f"{e.label}: ячейка шаблона занята")
+                    raise ValueError(tr(f"{e.label}: ячейка шаблона занята", f"{e.label}: the template cell is occupied"))
                 occupied.update(footprint)
             if e.kind == "slider" and not valid_slider(e, e.initial):
-                raise ValueError(f"{e.label}: проверьте диапазон, шаг и начальное значение")
+                raise ValueError(tr(f"{e.label}: проверьте диапазон, шаг и начальное значение", f"{e.label}: check the range, step, and initial value"))
         commands = {e.command for e in elements.values() if e.kind in ("button", "switch", "slider")}
         python_sender = any(a.kind == "python" for a in self.actions)
         bound = set()
         for a in self.actions:
             if a.trigger == "command" and not a.command.strip():
-                raise ValueError(f"{a.name}: задайте команду запуска")
+                raise ValueError(tr(f"{a.name}: задайте команду запуска", f"{a.name}: enter a trigger command"))
             if a.targets and a.trigger == "command" and a.command not in commands and not python_sender:
-                raise ValueError(f"{a.name}: нет элемента, отправляющего команду {a.command}")
+                raise ValueError(tr(f"{a.name}: нет элемента, отправляющего команду {a.command}", f"{a.name}: no element sends the command {a.command}"))
             if a.kind == "reach" and not re.fullmatch(r"[a-zA-Z0-9:][a-zA-Z0-9:.%-]{0,252}", a.host):
-                raise ValueError(f"{a.name}: укажите имя хоста или IP")
+                raise ValueError(tr(f"{a.name}: укажите имя хоста или IP", f"{a.name}: enter a hostname or IP address"))
             if a.kind == "http" and (urlsplit(a.url).scheme not in ("http", "https") or not urlsplit(a.url).hostname):
-                raise ValueError(f"{a.name}: нужен URL HTTP или HTTPS")
+                raise ValueError(tr(f"{a.name}: нужен URL HTTP или HTTPS", f"{a.name}: an HTTP or HTTPS URL is required"))
             if a.kind == "python":
                 try:
                     compile(a.code, "<widget>", "exec")
                 except SyntaxError as exc:
-                    raise ValueError(f"{a.name}: {exc.msg}, строка {exc.lineno}") from exc
+                    raise ValueError(tr(f"{a.name}: {exc.msg}, строка {exc.lineno}", f"{a.name}: {exc.msg}, line {exc.lineno}")) from exc
             for t in a.targets:
                 e = elements.get(t.element)
                 if not e or e.kind not in ("text", "indicator"):
-                    raise ValueError(f"{a.name}: получатель {t.element} удалён или недопустим")
+                    raise ValueError(tr(f"{a.name}: получатель {t.element} удалён или недопустим", f"{a.name}: recipient {t.element} was deleted or is invalid"))
                 if e.id in bound:
-                    raise ValueError(f"{e.label}: выберите одно действие обновления")
+                    raise ValueError(tr(f"{e.label}: выберите одно действие обновления", f"{e.label}: select one update action"))
                 bound.add(e.id)
+
+
+def element_label(element):
+    if not element.defaultLabel:
+        return element.label
+    russian, english = {
+        "text": ("Текст", "Text"),
+        "button": ("Кнопка", "Button"),
+        "switch": ("Переключатель", "Switch"),
+        "slider": ("Слайдер", "Slider"),
+        "indicator": ("Индикатор состояния", "Status indicator"),
+        "input": ("Поле ввода", "Input field"),
+    }[element.kind]
+    return tr(russian, english)
 
 
 def valid_slider(e, value):
@@ -175,13 +192,13 @@ def save(body, template_id=None, creation_key=None):
         if template_id is None:
             template_id = "template:" + (creation_key or uuid4()).hex
             if conn.execute("SELECT 1 FROM deleted_templates WHERE id=?", (template_id,)).fetchone():
-                raise HTTPException(409, "Шаблон удалён. Создайте новый черновик.")
+                raise HTTPException(409, tr("Шаблон удалён. Создайте новый черновик.", "The template was deleted. Create a new draft."))
             body.revision = 1
             existing = conn.execute("SELECT definition FROM templates WHERE id=?", (template_id,)).fetchone()
             if existing is None:
                 conn.execute("INSERT INTO templates VALUES (?, ?)", (template_id, body.model_dump_json()))
             elif Definition.model_validate_json(existing["definition"]) != body:
-                raise HTTPException(409, "Шаблон уже сохранён. Откройте его для редактирования.")
+                raise HTTPException(409, tr("Шаблон уже сохранён. Откройте его для редактирования.", "The template has already been saved. Open it to edit it."))
         else:
             revision = body.revision
             body.revision += 1
@@ -190,7 +207,7 @@ def save(body, template_id=None, creation_key=None):
             if previous is None or previous.revision != revision:
                 if previous == body:
                     return {"id": template_id, **body.model_dump()}
-                raise HTTPException(409, "Версия шаблона изменилась. Откройте его заново.")
+                raise HTTPException(409, tr("Версия шаблона изменилась. Откройте его заново.", "The template version has changed. Reopen it."))
             conn.execute("UPDATE templates SET definition=? WHERE id=?", (body.model_dump_json(), template_id))
             if previous.actions == body.actions and previous.runtime_elements() == body.runtime_elements():
                 return {"id": template_id, **body.model_dump()}
@@ -231,9 +248,9 @@ def delete_template(template_id: str, revision: int | None = None):
         if row is None:
             if conn.execute("SELECT 1 FROM deleted_templates WHERE id=?", (template_id,)).fetchone():
                 return {"id": template_id}
-            raise HTTPException(404, "Шаблон отсутствует")
+            raise HTTPException(404, tr("Шаблон отсутствует", "Template not found"))
         if revision is not None and row["revision"] != revision:
-            raise HTTPException(409, "Версия шаблона изменилась. Откройте его заново.")
+            raise HTTPException(409, tr("Версия шаблона изменилась. Откройте его заново.", "The template version has changed. Reopen it."))
         conn.execute("DELETE FROM templates WHERE id=?", (template_id,))
         conn.execute("INSERT INTO deleted_templates VALUES (?, ?)", (template_id, row["revision"]))
     return {"id": template_id}
@@ -288,10 +305,10 @@ def load_instance(conn, widget_id, revision):
     row = conn.execute("""SELECT w.settings, t.id, t.definition FROM widgets w
         JOIN templates t ON t.id=w.plugin_id WHERE w.id=?""", (widget_id,)).fetchone()
     if row is None:
-        raise HTTPException(404, "Экземпляр шаблона отсутствует")
+        raise HTTPException(404, tr("Экземпляр шаблона отсутствует", "Template instance not found"))
     definition = Definition.model_validate_json(row["definition"])
     if definition.revision != revision:
-        raise HTTPException(409, "Версия шаблона изменилась. Обновите рабочий стол.")
+        raise HTTPException(409, tr("Версия шаблона изменилась. Обновите рабочий стол.", "The template version has changed. Refresh the desktop."))
     return row, definition
 
 
@@ -302,7 +319,7 @@ def save_inputs(widget_id: int, body: Invocation):
         saved = json.loads(row["settings"]).get("inputs", {})
         values = inputs(definition, {**saved, **body.inputs})
         if any(k not in values or values[k] != v for k, v in body.inputs.items()):
-            raise HTTPException(422, "Недопустимое значение элемента")
+            raise HTTPException(422, tr("Недопустимое значение элемента", "Invalid element value"))
         conn.execute("UPDATE widgets SET settings=json_set(settings,'$.inputs',json(?)) WHERE id=?",
                      (json.dumps(values), widget_id))
     return values
@@ -318,9 +335,9 @@ def run_action(widget_id: int, action_id: str, body: Invocation):
         row, definition = load_instance(conn, widget_id, body.revision)
         action = next((a for a in definition.actions if a.id == action_id), None)
         if not action:
-            raise HTTPException(404, "Действие отсутствует в шаблоне экземпляра")
+            raise HTTPException(404, tr("Действие отсутствует в шаблоне экземпляра", "Action not found in this instance's template"))
         settings = json.loads(row["settings"])
-        values = {e.id: (e.color if e.kind == "indicator" else e.label) for e in definition.elements().values()}
+        values = {e.id: (e.color if e.kind == "indicator" else element_label(e)) for e in definition.elements().values()}
         values.update({k: v for k, v in body.outputs.items() if k in values})
         values.update(settings.get("outputs", {}))
         values.update(inputs(definition, {**settings.get("inputs", {}), **body.inputs}))
@@ -339,7 +356,7 @@ def run_action(widget_id: int, action_id: str, body: Invocation):
             value = get_field(result, t.field)
             if elements[t.element].kind == "indicator":
                 if value not in ("green", "yellow", "red"):
-                    raise ValueError("Для индикатора требуется green, yellow или red")
+                    raise ValueError(tr("Для индикатора требуется green, yellow или red", "The indicator requires green, yellow, or red"))
             elif not isinstance(value, str):
                 value = json.dumps(value, ensure_ascii=False, allow_nan=False)
             outputs[t.element] = value

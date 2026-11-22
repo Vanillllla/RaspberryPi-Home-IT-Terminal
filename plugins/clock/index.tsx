@@ -1,12 +1,16 @@
 import { useEffect, useState } from 'react'
-import type { Plugin } from '@terminal/plugin'
+import { useTranslation, type Plugin } from '@terminal/plugin'
 import './clock.css'
 
-const time = new Intl.DateTimeFormat('ru-RU', { timeStyle: 'medium' })
-const weekday = new Intl.DateTimeFormat('ru-RU', { weekday: 'long' })
-const date = new Intl.DateTimeFormat('ru-RU', { dateStyle: 'long' })
+const formats = Object.fromEntries(['ru', 'en'].map(language => [language, {
+  time: new Intl.DateTimeFormat(language, { timeStyle: 'medium' }),
+  weekday: new Intl.DateTimeFormat(language, { weekday: 'long' }),
+  date: new Intl.DateTimeFormat(language, { dateStyle: 'long' }),
+}]))
 
 function Clock() {
+  const { language } = useTranslation()
+  const { time, weekday, date } = formats[language]
   const [now, setNow] = useState(() => new Date())
   useEffect(() => {
     const timer = window.setInterval(() => setNow(new Date()), 1000)

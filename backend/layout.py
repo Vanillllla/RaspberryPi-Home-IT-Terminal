@@ -1,9 +1,10 @@
+from .i18n import tr
+
 COLUMNS = 12
 DEFAULT_WIDTH = 4
 DEFAULT_HEIGHT = 2
 # Enough rows for all 4096 legacy slots in a three-column landscape layout.
 MAX_ROWS = 2732
-
 
 def row_count(widgets):
     bottom = max((w["slot"] // COLUMNS + w["height"] for w in widgets), default=0)
@@ -27,8 +28,8 @@ class Layout:
     def conflict(self, slot, width, height):
         y, x = divmod(slot, COLUMNS)
         if x + width > COLUMNS or y + height > self.rows:
-            return "Прямоугольник выходит за границы сетки"
+            return tr("Прямоугольник выходит за границы сетки", "The rectangle extends beyond the grid")
         mask = ((1 << width) - 1) << x
         if any(row & mask for row in self.occupied[y:y + height]):
-            return "Часть прямоугольника занята другим виджетом"
+            return tr("Часть прямоугольника занята другим виджетом", "Another widget occupies part of the rectangle")
         return None

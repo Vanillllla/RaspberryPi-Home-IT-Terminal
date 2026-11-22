@@ -10,12 +10,18 @@ log = logging.getLogger(__name__)
 PLUGINS = Path(__file__).resolve().parents[1] / "plugins"
 
 
+class LocalizedManifest(BaseModel):
+    name: str
+    description: str
+
+
 class Manifest(BaseModel):
     apiVersion: Literal[1]
     id: str = Field(pattern=r"^[a-z][a-z0-9-]*$")
     name: str = Field(min_length=1)
     version: str = Field(min_length=1)
     description: str
+    translations: dict[str, LocalizedManifest] = Field(default_factory=dict)
     capabilities: list[Literal["details", "settings", "backend"]]
 
 

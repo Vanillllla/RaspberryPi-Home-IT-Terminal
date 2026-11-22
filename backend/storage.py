@@ -28,6 +28,9 @@ def initialize():
         conn.execute("""CREATE TABLE IF NOT EXISTS desktops (
             id INTEGER PRIMARY KEY, name TEXT NOT NULL
         )""")
+        if "default_name" not in {column["name"] for column in conn.execute("PRAGMA table_info(desktops)")}:
+            conn.execute("ALTER TABLE desktops ADD COLUMN default_name INTEGER NOT NULL DEFAULT 0")
+            conn.execute("UPDATE desktops SET default_name=1 WHERE name='Рабочий стол ' || id")
         conn.execute("""CREATE TABLE IF NOT EXISTS widgets (
             id INTEGER PRIMARY KEY,
             desktop_id INTEGER NOT NULL REFERENCES desktops(id),
@@ -59,8 +62,8 @@ def initialize():
 def insert_desktop(conn):
     number = conn.execute("UPDATE desktop_sequence SET last_id=last_id+1 RETURNING last_id").fetchone()[0]
     name = f"Рабочий стол {number}"
-    conn.execute("INSERT INTO desktops(id, name) VALUES (?, ?)", (number, name))
-    return {"id": number, "name": name}
+    conn.execute("INSERT INTO desktops(id, name, default_name) VALUES (?, ?, 1)", (number, name))
+    return {"id": number, "name": name, "default_name": True}
 
 
 def instance(row):

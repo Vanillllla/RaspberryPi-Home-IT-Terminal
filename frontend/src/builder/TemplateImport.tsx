@@ -1,3 +1,4 @@
+import { useTranslation } from '../i18n'
 import { useRef, useState } from 'react'
 import { api } from '../api'
 import type { Template } from './model'
@@ -9,6 +10,7 @@ interface Props {
 }
 
 export function TemplateImport({ setBusy, imported, open }: Props) {
+  const { t } = useTranslation()
   const folder = useRef<HTMLInputElement>(null)
   const zip = useRef<HTMLInputElement>(null)
   const [choosing, setChoosing] = useState(false)
@@ -23,9 +25,9 @@ export function TemplateImport({ setBusy, imported, open }: Props) {
     setResult(null)
     try {
       const file = files[0]
-      if (!file) throw new Error(directory ? 'В папке отсутствует template.json' : 'Выберите ZIP-архив')
+      if (!file) throw new Error(directory ? t('В папке отсутствует template.json') : t('Выберите ZIP-архив'))
       if (directory && (files.length !== 1 || !file.webkitRelativePath)) {
-        throw new Error('Выберите папку с одним файлом template.json')
+        throw new Error(t('Выберите папку с одним файлом template.json'))
       }
       const query = directory ? '?' + new URLSearchParams({ path: file.webkitRelativePath }) : ''
       const content = file.slice(0, file.size, directory ? 'application/json' : 'application/zip')
@@ -34,7 +36,7 @@ export function TemplateImport({ setBusy, imported, open }: Props) {
       setResult(template)
       setChoosing(false)
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Не удалось загрузить шаблон')
+      setError(e instanceof Error ? e.message : t('Не удалось загрузить шаблон'))
     } finally {
       setBusy(false)
     }
@@ -43,17 +45,17 @@ export function TemplateImport({ setBusy, imported, open }: Props) {
   return <div className="template-import">
     <button type="button" aria-expanded={choosing} onClick={() => {
       setChoosing(!choosing); setResult(null); setError('')
-    }}>Загрузить шаблон</button>
+    }}>{t('Загрузить шаблон')}</button>
     {choosing && <div className="import-options">
-      <button type="button" onClick={() => folder.current?.click()}>Выбрать папку</button>
-      <button type="button" onClick={() => zip.current?.click()}>Выбрать ZIP</button>
+      <button type="button" onClick={() => folder.current?.click()}>{t('Выбрать папку')}</button>
+      <button type="button" onClick={() => zip.current?.click()}>{t('Выбрать ZIP')}</button>
     </div>}
     <input hidden type="file" ref={el => { folder.current = el; el?.setAttribute('webkitdirectory', '') }}
-      aria-label="Папка шаблона" onChange={e => void upload(e.currentTarget, true)} />
-    <input hidden type="file" ref={zip} accept=".zip" aria-label="ZIP шаблона" onChange={e => void upload(e.currentTarget, false)} />
+      aria-label={t('Папка шаблона')} onChange={e => void upload(e.currentTarget, true)} />
+    <input hidden type="file" ref={zip} accept=".zip" aria-label={t('ZIP шаблона')} onChange={e => void upload(e.currentTarget, false)} />
     {error && <p role="alert">{error}</p>}
-    {result && <div className="import-result"><span role="status">Шаблон «{result.name}» загружен.</span>
-      <button type="button" onClick={() => { open(result.id); setResult(null) }}>Открыть в конструкторе</button>
+    {result && <div className="import-result"><span role="status">{t('Шаблон «{name}» загружен.', { name: result.name })}</span>
+      <button type="button" onClick={() => { open(result.id); setResult(null) }}>{t('Открыть в конструкторе')}</button>
     </div>}
   </div>
 }

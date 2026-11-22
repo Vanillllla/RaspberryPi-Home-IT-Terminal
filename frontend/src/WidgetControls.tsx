@@ -1,3 +1,4 @@
+import { useTranslation } from './i18n'
 import type { CSSProperties } from 'react'
 import './widget-controls.css'
 
@@ -8,8 +9,9 @@ interface SwitchProps {
 }
 
 export function WidgetSwitch({ label, checked, onChange }: SwitchProps) {
+  const { t } = useTranslation()
   return <label className="widget-switch">
-    <input type="checkbox" role="switch" aria-label={label || 'Переключатель'} checked={checked} onChange={event => onChange(event.currentTarget.checked)} />
+    <input type="checkbox" role="switch" aria-label={label || t('Переключатель')} checked={checked} onChange={event => onChange(event.currentTarget.checked)} />
     {label && <span>{label}</span>}
   </label>
 }

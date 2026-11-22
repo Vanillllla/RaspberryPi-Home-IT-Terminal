@@ -1,3 +1,4 @@
+import { desktopName, pluginText, useTranslation } from './i18n'
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
 import { api, type Desktop, type State } from './api'
 import { Builder } from './builder/Builder'
@@ -13,11 +14,12 @@ import { PluginView } from './PluginView'
 import type { WidgetInstance } from './plugin'
 
 function Modal({ title, close, children, pending = false }: { title: string; close: () => void; children: ReactNode; pending?: boolean }) {
+  const { t } = useTranslation()
   const dialog = useRef<HTMLDialogElement>(null)
   useEffect(() => { dialog.current!.showModal() }, [])
   return <dialog ref={dialog} onCancel={e => { e.preventDefault(); if (!pending) close() }} aria-labelledby="dialog-title">
     <div className="modal-head"><h2 id="dialog-title">{title}</h2>
-      <button disabled={pending} onClick={close} aria-label="Закрыть">×</button></div>
+      <button disabled={pending} onClick={close} aria-label={t('Закрыть')}>×</button></div>
     {children}
   </dialog>
 }
@@ -32,6 +34,7 @@ type Panel =
   | { mode: 'actions' | 'Settings' | 'Details'; id: number }
 
 export function App() {
+  const { t, language, chooseLanguage } = useTranslation()
   const [data, setData] = useState<State | null>(null)
   const [active, setActive] = useState(() => Number(sessionStorage.getItem('desktop')))
   const [panel, setPanel] = useState<Panel | null>(null)
@@ -116,7 +119,7 @@ export function App() {
     try {
       await action()
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Ошибка сохранения')
+      setError(e instanceof Error ? e.message : t('Ошибка сохранения'))
       await reload().catch(() => {})
     } finally {
       lock.current = false
@@ -144,7 +147,7 @@ export function App() {
 
   function view(widget: WidgetInstance, mode: 'Widget' | 'Details') {
     const manifest = data?.plugins.find(p => p.id === widget.plugin_id)
-    if (!manifest) return <p>{widget.plugin_id.startsWith('template:') ? 'Шаблон недоступен.' : 'Плагин недоступен.'} Размещение сохранено.</p>
+    if (!manifest) return <p>{widget.plugin_id.startsWith('template:') ? t('Шаблон недоступен.') : t('Плагин недоступен.')} {t('Размещение сохранено.')}</p>
     return <PluginView instance={widget} mode={mode} saveSettings={async settings => {
       await api('widgets/' + widget.id + '/settings', 'PUT', { settings })
       await reload()
@@ -169,15 +172,16 @@ export function App() {
         resetTimers={resetTimers} inputWrites={inputWrites}
         active={desktop?.id === widget.desktop_id && panel?.mode !== 'builder'} patch={patchRuntime} /> : view(widget, 'Widget')}
       {capabilities.includes('details') && <button onClick={() => setPanel({ mode: 'Details', id: widget.id })}>
-        Подробнее
+        {t('Подробнее')}
       </button>}
     </div>
   }
 
+  const localizedPlugins = data?.plugins.map(plugin => pluginText(plugin, language)) ?? []
   const opened = panel && 'id' in panel && data?.widgets.find(w => w.id === panel.id)
   return <>
     <main>
-      {error && !drawerOpen && panel?.mode !== 'rename-desktop' && panel?.mode !== 'add' && panel?.mode !== 'delete-desktop' && <p role="alert">{error} <button onClick={() => void mutate(async () => {})}>Обновить</button></p>}
+      {error && !drawerOpen && panel?.mode !== 'rename-desktop' && panel?.mode !== 'add' && panel?.mode !== 'delete-desktop' && <p role="alert">{error} <button onClick={() => void mutate(async () => {})}>{t('Обновить')}</button></p>}
       {desktop && data ? <>
         <div className="toolbar">
           <DesktopNavigation desktops={data.desktops} active={desktop} open={drawerOpen} busy={busy}
@@ -187,96 +191,103 @@ export function App() {
               setData(current => current && { ...current, desktops: [...current.desktops, next] })
               select(next.id)
             })}
-            rename={() => { setError(''); setPanel({ mode: 'rename-desktop', selected: desktop.id, name: desktop.name }) }}
+            rename={() => { setError(''); setPanel({ mode: 'rename-desktop', selected: desktop.id, name: desktopName(desktop, t) }) }}
             remove={() => { setError(''); setPanel({ mode: 'delete-desktop', selected: null }) }} />
-          <button className="nav-action" inert={drawerOpen} aria-label="Настройки панели" title="Настройки панели" aria-haspopup="dialog"
+          <button className="nav-action" inert={drawerOpen} aria-label={t('Настройки панели')} title={t('Настройки панели')} aria-haspopup="dialog"
             onClick={() => setPanel({ mode: 'panel-settings' })}>
             <svg aria-hidden="true" viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round">
               <path d="M10 3h4l.6 2.5 1.6.9 2.4-.7 2 3.5-1.8 1.8v2l1.8 1.8-2 3.5-2.4-.7-1.6.9L14 21h-4l-.6-2.5-1.6-.9-2.4.7-2-3.5L5.2 13v-2L3.4 9.2l2-3.5 2.4.7 1.6-.9Z" />
               <circle cx="12" cy="12" r="3" />
             </svg>
           </button>
-          <h1 title={desktop.name}>{desktop.name}</h1>
+          <h1 title={desktopName(desktop, t)}>{desktopName(desktop, t)}</h1>
           <div className="widget-buttons" inert={drawerOpen}>
-            <button disabled={busy} onClick={() => setPanel({ mode: 'builder' })}>Создать виджет</button>
-            <button className="primary add" onClick={() => setPanel({ mode: 'add' })}>+ Виджет</button>
+            <button disabled={busy} onClick={() => setPanel({ mode: 'builder' })}>{t('Создать виджет')}</button>
+            <button className="primary add" onClick={() => setPanel({ mode: 'add' })}>{t('+ Виджет')}</button>
           </div>
         </div>
         <DesktopPager desktops={data.desktops} active={desktop} select={select} blocked={panel !== null}
           render={(page, interactive) => (
             <Grid reportCellSize={page.id === desktop.id ? setCellSize : undefined} columns={data.columns} maxRows={data.max_rows} reportRows={page.id === desktop.id ? setRows : undefined} interactive={interactive && !busy} widgets={data.widgets.filter(w => w.desktop_id === page.id)}
-              title={w => data.templates.find(t => t.id === w.plugin_id)?.name ?? data.plugins.find(p => p.id === w.plugin_id)?.name ?? w.plugin_id}
+              title={w => data.templates.find(t => t.id === w.plugin_id)?.name ?? localizedPlugins.find(p => p.id === w.plugin_id)?.name ?? w.plugin_id}
               openActions={id => setPanel({ mode: 'actions', id })}
               move={(id, slot, rows) => mutate(() => api('widgets/' + id + '/position', 'PUT', { slot, rows }))}
               render={renderCard} />
           )} />
-      </> : !error && <p>Загрузка рабочего стола…</p>}
+      </> : !error && <p>{t('Загрузка рабочего стола…')}</p>}
     </main>
-    {panel?.mode === 'rename-desktop' && data && <Modal title="Переименовать рабочий стол" pending={busy}
+    {panel?.mode === 'rename-desktop' && data && <Modal title={t('Переименовать рабочий стол')} pending={busy}
       close={() => setDrawerOpen(true)}>
       <form className="rename-desktop" onSubmit={e => {
         e.preventDefault()
         const name = panel.name.trim()
-        if (!name) { setError('Введите название рабочего стола'); return }
+        if (!name) { setError(t('Введите название рабочего стола')); return }
         void runMutation(async () => {
           const updated = await api<Pick<Desktop, 'id' | 'name'>>('desktops/' + panel.selected + '/name', 'PUT', { name })
-          setData(current => current && { ...current, desktops: current.desktops.map(d => d.id === updated.id ? { ...d, name: updated.name } : d) })
+          setData(current => current && { ...current, desktops: current.desktops.map(d => d.id === updated.id ? { ...d, ...updated } : d) })
           setDrawerOpen(true)
         })
       }}>
         <div className="rename-field">
-          <label htmlFor="rename-target">Рабочий стол</label>
+          <label htmlFor="rename-target">{t('Рабочий стол')}</label>
           <select id="rename-target" disabled={busy} value={panel.selected} onChange={e => {
             const selected = data.desktops.find(d => d.id === Number(e.target.value))!
             setError('')
-            setPanel({ mode: 'rename-desktop', selected: selected.id, name: selected.name })
+            setPanel({ mode: 'rename-desktop', selected: selected.id, name: desktopName(selected, t) })
           }}>
-            {data.desktops.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
+            {data.desktops.map(d => <option key={d.id} value={d.id}>{desktopName(d, t)}</option>)}
           </select>
         </div>
-        <label>Название
+        <label>{t('Название')}
           <input disabled={busy} value={panel.name} onChange={e => { setError(''); setPanel({ ...panel, name: e.target.value }) }} />
         </label>
         {error && <p role="alert">{error}</p>}
         <div className="dialog-actions">
-          <button type="button" disabled={busy} onClick={() => setDrawerOpen(true)}>Отмена</button>
-          <button className="primary" disabled={busy}>Сохранить</button>
+          <button type="button" disabled={busy} onClick={() => setDrawerOpen(true)}>{t('Отмена')}</button>
+          <button className="primary" disabled={busy}>{t('Сохранить')}</button>
         </div>
       </form>
     </Modal>}
-    {panel?.mode === 'delete-desktop' && data && <Modal title="Удалить рабочий стол" pending={busy}
+    {panel?.mode === 'delete-desktop' && data && <Modal title={t('Удалить рабочий стол')} pending={busy}
       close={() => setDrawerOpen(true)}>
       <form onSubmit={e => {
         e.preventDefault()
         if (panel.selected !== null) void removeDesktop(panel.selected)
       }}>
         <fieldset className="desktop-options" disabled={busy}>
-          <legend>Выберите рабочий стол</legend>
+          <legend>{t('Выберите рабочий стол')}</legend>
           {data.desktops.map(d => <label key={d.id}>
             <input type="radio" name="delete-desktop" checked={panel.selected === d.id}
               onChange={() => { setError(''); setPanel({ mode: 'delete-desktop', selected: d.id }) }} />
-            {d.name}
+            {desktopName(d, t)}
           </label>)}
         </fieldset>
-        <p>Виджеты выбранного стола будут удалены вместе с ним.</p>
-        {data.desktops.length === 1 && <p>Последний рабочий стол удалить нельзя.</p>}
+        <p>{t('Виджеты выбранного стола будут удалены вместе с ним.')}</p>
+        {data.desktops.length === 1 && <p>{t('Последний рабочий стол удалить нельзя.')}</p>}
         {error && <p role="alert">{error}</p>}
         <div className="dialog-actions">
-          <button type="button" disabled={busy} onClick={() => setDrawerOpen(true)}>Отмена</button>
-          <button className="primary" disabled={busy || data.desktops.length < 2 || !data.desktops.some(d => d.id === panel.selected)}>ОК</button>
+          <button type="button" disabled={busy} onClick={() => setDrawerOpen(true)}>{t('Отмена')}</button>
+          <button className="primary" disabled={busy || data.desktops.length < 2 || !data.desktops.some(d => d.id === panel.selected)}>{t('ОК')}</button>
         </div>
       </form>
     </Modal>}
-    {panel?.mode === 'panel-settings' && <Modal title="Настройки панели" close={() => setPanel(null)}>
+    {panel?.mode === 'panel-settings' && <Modal title={t('Настройки панели')} close={() => setPanel(null)}>
       <fieldset className="theme-settings">
-        <legend>Тема</legend>
+        <legend>{t('Тема')}</legend>
         {(['light', 'dark'] as const).map(value => <label key={value}>
           <input type="radio" name="theme" checked={theme === value} onChange={() => chooseTheme(value)} />
-          {value === 'light' ? 'Светлая' : 'Тёмная'}
+          {value === 'light' ? t('Светлая') : t('Тёмная')}
         </label>)}
       </fieldset>
+      <fieldset className="theme-settings">
+        <legend>{t('Язык')}</legend>
+        <label><input type="radio" name="language" checked={language === 'ru'}
+          onChange={() => { chooseLanguage('ru'); setError('') }} /><span lang="ru">Русский</span></label>
+        <label><input type="radio" name="language" checked={language === 'en'}
+          onChange={() => { chooseLanguage('en'); setError('') }} /><span lang="en">English</span></label>
+      </fieldset>
     </Modal>}
-    {panel?.mode === 'builder' && data && <Modal title="Конструктор виджетов" pending={busy} close={() => setPanel(null)}>
+    {panel?.mode === 'builder' && data && <Modal title={t('Конструктор виджетов')} pending={busy} close={() => setPanel(null)}>
       <Builder cellSize={cellSize} columns={data.columns} maxRows={data.max_rows} templates={data.templates} busy={busy} setBusy={setBusy}
         imported={template => setData(current => current && { ...current, templates: [...current.templates.filter(t => t.id !== template.id), template] })}
         deleted={id => setData(current => current && { ...current, templates: current.templates.filter(t => t.id !== id) })}
@@ -286,28 +297,28 @@ export function App() {
         } catch (e) {
           // The write already succeeded. Keep the saved template available if the refresh fails.
           setData(current => current && { ...current, templates: [...current.templates.filter(t => t.id !== template.id), template] })
-          setError(e instanceof Error ? e.message : 'Не удалось обновить рабочий стол')
+          setError(e instanceof Error ? e.message : t('Не удалось обновить рабочий стол'))
         }
         setPanel(null)
       }} />
     </Modal>}
-    {panel?.mode === 'add' && data && desktop && <Modal title="Добавить виджет" close={() => { setError(''); setPanel(null) }}>
-      {data.plugins.length === 0 && data.templates.length === 0 && <p>Доступных плагинов пока нет.</p>}
-      {[...data.plugins, ...data.templates.map(t => ({ id: t.id, name: t.name, description: t.description || 'Пользовательский шаблон' }))].map(p => <button className="choice" key={p.id} disabled={busy}
+    {panel?.mode === 'add' && data && desktop && <Modal title={t('Добавить виджет')} close={() => { setError(''); setPanel(null) }}>
+      {data.plugins.length === 0 && data.templates.length === 0 && <p>{t('Доступных плагинов пока нет.')}</p>}
+      {[...localizedPlugins, ...data.templates.map(template => ({ id: template.id, name: template.name, description: template.description || t('Пользовательский шаблон') }))].map(p => <button className="choice" key={p.id} disabled={busy}
         onClick={() => void mutate(async () => {
           await api('desktops/' + desktop.id + '/widgets', 'POST', { plugin_id: p.id, rows })
           setPanel(null)
         })}><strong>{p.name}</strong><small>{p.description}</small></button>)}
       {error && <p role="alert">{error}</p>}
     </Modal>}
-    {opened && panel.mode === 'actions' && <Modal title="Действия с виджетом" close={() => setPanel(null)}>
-      <button className="choice" onClick={() => setPanel({ mode: 'Settings', id: opened.id })}>Настройки</button>
+    {opened && panel.mode === 'actions' && <Modal title={t('Действия с виджетом')} close={() => setPanel(null)}>
+      <button className="choice" onClick={() => setPanel({ mode: 'Settings', id: opened.id })}>{t('Настройки')}</button>
       <button className="choice remove-widget" disabled={busy} onClick={() => void mutate(async () => {
         setPanel(null)
         await api('widgets/' + opened.id, 'DELETE')
-      })}>Удалить виджет</button>
+      })}>{t('Удалить виджет')}</button>
     </Modal>}
-    {data && desktop && opened && panel.mode !== 'actions' && <Modal title={panel.mode === 'Settings' ? 'Настройки' : 'Подробнее'}
+    {data && desktop && opened && panel.mode !== 'actions' && <Modal title={panel.mode === 'Settings' ? t('Настройки') : t('Подробнее')}
       pending={busy} close={() => setPanel(null)}>{panel.mode === 'Details' ? <div className="details-view">{view(opened, 'Details')}</div> :
         <InstanceSettings key={opened.id} widget={opened} busy={busy}
           pluginSettings={data.plugins.some(p => p.id === opened.plugin_id && p.capabilities.includes('settings'))}
@@ -315,7 +326,7 @@ export function App() {
             const reason = placementError(data.widgets.filter(w => w.desktop_id === opened.desktop_id),
               data.columns, rows, opened.id, opened.slot % data.columns, Math.floor(opened.slot / data.columns),
               draft.width, draft.height)
-            if (reason) throw new Error(reason)
+            if (reason) throw new Error(t(reason))
             setBusy(true)
             try {
               const updated = await api<WidgetInstance>('widgets/' + opened.id + '/configuration', 'PUT', { ...draft, rows })

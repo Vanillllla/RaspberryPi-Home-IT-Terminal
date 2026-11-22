@@ -3,7 +3,7 @@ import type { WidgetInstance } from './plugin'
 export const palettes = {
   white: 'Белый', black: 'Чёрный', green: 'Зелёный', red: 'Красный',
   purple: 'Фиолетовый', yellow: 'Жёлтый', orange: 'Оранжевый',
-}
+} as const
 export type Palette = keyof typeof palettes
 
 function palette(value: unknown, fallback: Palette): Palette {
