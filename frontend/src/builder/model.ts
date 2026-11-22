@@ -74,6 +74,11 @@ export function unusedCommand(draft: Draft) {
 export function actionLabel(action: Action) {
   return action.trigger === 'command' && action.command ? action.name + ' · ' + action.command : action.name
 }
+
+export function contextExpression(id: string) {
+  return `context["values"][${JSON.stringify(id)}]`
+}
+
 export function emptyDraft(): Draft {
   return { name: '', rows: [[]], actions: [], revision: 0 }
 }

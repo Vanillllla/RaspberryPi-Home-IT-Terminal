@@ -4,11 +4,13 @@ import { canPlace } from './ElementLayout'
 
 type Mode = 'add' | 'move' | 'resize'
 interface Press { item: Item; mode: Mode; pointer: number; x: number; y: number; moved: boolean }
+const doubleClickDelay = 500
 
 export function useElementDrag(surface: RefObject<HTMLDivElement | null>, items: Item[], width: number, height: number,
   place: (item: Item, frame: Frame) => void) {
   const press = useRef<Press | null>(null)
   const suppress = useRef(false)
+  const pendingClick = useRef<number>(undefined)
   const [target, setTarget] = useState<{ item: Item; frame: Frame; valid: boolean } | null>(null)
 
   function locate(e: PointerEvent, start: Press) {
@@ -46,14 +48,21 @@ export function useElementDrag(surface: RefObject<HTMLDivElement | null>, items:
       }
     }
     window.addEventListener('keydown', escape, true)
-    return () => window.removeEventListener('keydown', escape, true)
+    return () => {
+      window.removeEventListener('keydown', escape, true)
+      window.clearTimeout(pendingClick.current)
+    }
   }, [])
+
+  function cancelClick() {
+    window.clearTimeout(pendingClick.current)
+  }
 
   function interrupted(e: PointerEvent<HTMLButtonElement>) {
     if (press.current?.pointer === e.pointerId) cancel()
   }
 
-  function handlers(mode: Mode, getItem: () => Item, click: () => void) {
+  function handlers(mode: Mode, getItem: () => Item, click: () => void, doubleClick?: (button: HTMLButtonElement) => void) {
     return {
       onPointerDown(e: PointerEvent<HTMLButtonElement>) {
         if (!e.isPrimary || e.button !== 0 || press.current) return
@@ -77,8 +86,23 @@ export function useElementDrag(surface: RefObject<HTMLDivElement | null>, items:
       },
       onPointerCancel: interrupted,
       onLostPointerCapture: interrupted,
-      onClick(e: MouseEvent) { if (!e.detail || !suppress.current) click() },
+      onClick(e: MouseEvent) {
+        if (!e.detail) {
+          cancelClick()
+          click()
+          return
+        }
+        if (suppress.current) return
+        if (!doubleClick) click()
+        else if (e.detail === 1) pendingClick.current = window.setTimeout(click, doubleClickDelay)
+      },
+      onDoubleClick(e: MouseEvent<HTMLButtonElement>) {
+        if (doubleClick && !suppress.current) {
+          cancelClick()
+          doubleClick(e.currentTarget)
+        }
+      },
     }
   }
-  return { target, handlers }
+  return { target, handlers, cancelClick }
 }

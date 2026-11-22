@@ -1,4 +1,4 @@
-import { actionKinds, type Action, type Item } from './model'
+import { actionKinds, contextExpression, type Action, type Item } from './model'
 
 interface Props { action: Action; items: Item[]; update: (change: Partial<Action>) => void }
 
@@ -36,7 +36,7 @@ export function ActionEditor({ action, items, update }: Props) {
       <label>Код Python<textarea rows={7} spellCheck={false} value={action.code} onChange={e => update({ code: e.target.value })} /></label>
       <small>Чтобы вывести цветное число, верните словарь с ключами text и color. Для текстового получателя оставьте «Поле результата» пустым.</small>
       <details><summary>Значения в context</summary>{items.map(e =>
-        <p key={e.id}>{e.label} · <code>{'context["values"]["' + e.id + '"]'}</code></p>)}</details>
+        <p key={e.id}>{e.label} · <code>{contextExpression(e.id)}</code></p>)}</details>
     </>}
     <fieldset><legend>Получатели результата</legend>
       {!receivers.length && <small>Добавьте текст или индикатор.</small>}

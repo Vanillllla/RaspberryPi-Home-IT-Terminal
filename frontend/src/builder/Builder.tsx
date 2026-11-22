@@ -5,11 +5,37 @@ import { useElementDrag } from './useElementDrag'
 import { ElementView } from './TemplateCard'
 import { TemplateImport } from './TemplateImport'
 import { ActionEditor } from './ActionEditor'
-import { actionKinds, actionLabel, colors, emptyDraft, inputFormats, kinds, newAction, newItem, randomKey, subdivisions, unusedCommand, type ActionKind, type Color,
+import { actionKinds, actionLabel, colors, contextExpression, emptyDraft, inputFormats, kinds, newAction, newItem, randomKey, subdivisions, unusedCommand, type ActionKind, type Color,
   type Action, type Draft, type Frame, type Item, type Kind, type Template } from './model'
 import './builder.css'
 
 const symbols: Record<Kind, string> = { text: 'T', button: '▣', switch: '◐', slider: '↔', indicator: '●', input: '▏' }
+
+async function copyExpression(expression: string, origin: HTMLElement) {
+  if (navigator.clipboard?.writeText) {
+    try {
+      await navigator.clipboard.writeText(expression)
+      return
+    } catch { /* Try the selection-based copy below. */ }
+  }
+
+  // LAN access can use HTTP, where the asynchronous clipboard API is unavailable.
+  const previousFocus = document.activeElement
+  const field = document.createElement('textarea')
+  field.value = expression
+  field.readOnly = true
+  field.style.cssText = 'position: fixed; inset: 0 auto auto 0; opacity: 0; pointer-events: none'
+  const container = origin.closest('dialog') ?? document.body
+  container.append(field)
+  try {
+    field.focus({ preventScroll: true })
+    field.select()
+    if (!document.execCommand('copy')) throw new Error('Clipboard unavailable')
+  } finally {
+    field.remove()
+    if (previousFocus instanceof HTMLElement) previousFocus.focus({ preventScroll: true })
+  }
+}
 
 interface Props {
   cellSize: number
@@ -62,6 +88,14 @@ export function Builder({ cellSize, columns, maxRows, templates, busy, setBusy, 
   function select(id: string) {
     setElement(id)
     setTab('element')
+  }
+  async function copyContext(id: string, origin: HTMLElement) {
+    const expression = contextExpression(id)
+    try {
+      await copyExpression(expression, origin)
+    } catch {
+      setError('Не удалось скопировать выражение. Скопируйте вручную ' + expression)
+    }
   }
   function place(element: Item, frame: Frame) {
     const next = { ...element, frame }
@@ -174,7 +208,7 @@ export function Builder({ cellSize, columns, maxRows, templates, busy, setBusy, 
       setBusy(false)
     }
   }
-  return <div className="builder" inert={busy} aria-busy={busy}>
+  return <div className="builder" inert={busy} aria-busy={busy} onPointerDownCapture={drag.cancelClick} onKeyDownCapture={drag.cancelClick}>
     <div className="builder-bar">
       <label>Шаблон<select aria-label="Шаблон" value={templateId} onChange={e => open(e.target.value)}>
         <option value="">Новый шаблон</option>{templates.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
@@ -210,7 +244,10 @@ export function Builder({ cellSize, columns, maxRows, templates, busy, setBusy, 
                   <div className="builder-preview-cell" data-dragging={drag.target?.item.id === el.id}>
                     <div className="frame-content" inert><ElementView item={el} /></div>
                     <button className="element-select" aria-label={'Выбрать ' + kinds[el.kind] + ' · ' + el.label} aria-pressed={el.id === elementId}
-                      onKeyDown={e => arrow(e, el, false)} {...drag.handlers('move', () => el, () => select(el.id))} />
+                      title="Дважды нажмите, чтобы скопировать выражение Python"
+                      onMouseDown={e => { if (tab === 'actions') e.preventDefault() }}
+                      onKeyDown={e => arrow(e, el, false)}
+                      {...drag.handlers('move', () => el, () => select(el.id), button => void copyContext(el.id, button))} />
                     {el.id === elementId && <button className="resize-handle" aria-label="Изменить размер элемента"
                       title="Потяните за угол или используйте стрелки" onKeyDown={e => arrow(e, el, true)}
                       {...drag.handlers('resize', () => el, () => select(el.id))} />}
