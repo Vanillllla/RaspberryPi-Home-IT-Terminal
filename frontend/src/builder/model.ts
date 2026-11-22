@@ -13,7 +13,14 @@ export type Outputs = Record<string, string>
 
 export interface Cell { x: number; y: number }
 
+export const subdivisions = 5
+export interface Frame extends Cell { width: number; height: number }
+export const fontFamilies = { system: 'inherit', serif: 'Georgia, serif', monospace: 'monospace' }
+
 export interface Item {
+  frame?: Frame | null
+  fontFamily?: keyof typeof fontFamilies
+  fontSize?: number
   cell?: Cell | null
   id: string; kind: Kind; label: string; command: string; checked: boolean; color: Color
   span?: number | null

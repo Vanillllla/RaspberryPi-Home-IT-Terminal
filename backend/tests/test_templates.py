@@ -65,6 +65,23 @@ class TemplateTests(unittest.TestCase):
             self.assertEqual(error.exception.status_code, 422)
             self.assertEqual(state()["templates"], [saved])
 
+    def test_fine_frames_preserve_results_and_validate_the_whole_rectangle(self):
+        template = create_template(Definition(**self.draft))
+        widget = create_widget(1, AddWidget(plugin_id=template["id"]))
+        run_action(widget["id"], "read", Invocation(revision=1))
+        before = state()["widgets"]
+        text, button = template["rows"][0]
+        text.update(frame=dict(x=0, y=0, width=12, height=6), fontSize=18, fontFamily="serif")
+        button["frame"] = dict(x=11, y=6, width=9, height=4)
+        saved = edit_template(template["id"], Definition(**template))
+        self.assertEqual(state()["widgets"], before)
+        for x, y in [(11, 5), (12, 6), (11, 7)]:
+            button["frame"].update(x=x, y=y)
+            with self.assertRaises(HTTPException) as error:
+                edit_template(template["id"], Definition(**{**template, "revision": 2}))
+            self.assertEqual(error.exception.status_code, 422)
+            self.assertEqual(state()["templates"], [saved])
+
     def test_running_action_does_not_write_into_edited_template(self):
         template = create_template(Definition(**self.draft))
         widget = create_widget(1, AddWidget(plugin_id=template["id"]))

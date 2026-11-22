@@ -1,11 +1,19 @@
 import type { CSSProperties, ReactNode } from 'react'
-import { cellStyle, type Cell, type Item } from './model'
+import { cellStyle, fontFamilies, subdivisions, type Cell, type Frame, type Draft, type Item } from './model'
 
-export function canPlace(item: Item, cell: Cell, items: Item[], width: number, height: number) {
-  const end = cell.x + (item.span ?? 1)
-  return cell.x >= 0 && cell.y >= 0 && end <= width && cell.y < height && !items.some(other =>
-    other.id !== item.id && other.cell?.y === cell.y && other.cell.x < end &&
-    other.cell.x + (other.span ?? 1) > cell.x)
+export function canPlace(id: string, frame: Frame, items: Item[], width: number, height: number) {
+  const { x, y, width: w, height: h } = frame
+  return x >= 0 && y >= 0 && w >= 1 && h >= 1 && x + w <= width && y + h <= height &&
+    !items.some(other => {
+      const f = other.frame
+      return other.id !== id && f && x < f.x + f.width && f.x < x + w && y < f.y + f.height && f.y < y + h
+    })
+}
+
+export function frameStyle(item: Item, columns: number, rows: number, f = item.frame!): CSSProperties {
+  return { left: f.x / columns * 100 + '%', top: f.y / rows * 100 + '%',
+    width: f.width / columns * 100 + '%', height: f.height / rows * 100 + '%',
+    fontSize: (item.fontSize ?? 12) + 'pt', fontFamily: fontFamilies[item.fontFamily ?? 'system'] }
 }
 
 // Keep automatic elements in source row order, using the space around pinned elements.
@@ -33,26 +41,64 @@ function positions(rows: Item[][], width: number) {
   return cells
 }
 
+// Convert legacy drafts on opening. Stored templates keep their original rendering until saved.
+export function editableDraft(draft: Draft): Draft {
+  const items = draft.rows.flat()
+  if (items.every(e => e.frame)) return draft
+  const width = draft.defaultWidth ?? 4
+  const height = draft.defaultHeight ?? 2
+  const cells = positions(draft.rows, width)
+  const pinned = items.some(e => e.cell)
+  const usedRows = Math.max(...items.map(e => cells.get(e.id)!.y + 1))
+  const defaultHeight = Math.max(height, Math.ceil(usedRows / subdivisions))
+  const rowHeight = Math.min(subdivisions, defaultHeight * subdivisions / usedRows)
+  const rows = draft.rows.map(row => row.map(({ cell, span, ...item }) => {
+    const { x, y } = cells.get(item.id)!
+    const top = Math.floor(y * rowHeight)
+    let left = x * subdivisions
+    let right = left + Math.min(width, span ?? 1) * subdivisions
+    if (!pinned) {
+      // Share unused columns between the automatic items in each old flow line.
+      const line = row.filter(e => cells.get(e.id)!.y === y)
+      const automatic = line.filter(e => !e.span)
+      const spare = width - line.reduce((n, e) => n + Math.min(width, e.span ?? 1), 0)
+      const extra = automatic.length ? subdivisions * spare / automatic.length : 0
+      const before = automatic.filter(e => cells.get(e.id)!.x < x).length
+      left += Math.round(before * extra)
+      right += Math.round((before + (span ? 0 : 1)) * extra)
+    }
+    return { ...item, frame: { x: left, y: top, width: right - left, height: Math.floor((y + 1) * rowHeight) - top } }
+  }))
+  return { ...draft, defaultHeight, rows }
+}
+
 interface Props {
   rows: Item[][]
   width: number
   height: number
   flowWidth?: number
-  render: (item: Item, row: number) => ReactNode
+  render: (item: Item) => ReactNode
 }
 
 export function ElementLayout({ rows, width, height, flowWidth = width, render }: Props) {
+  const items = rows.flat()
+  if (items.every(e => e.frame)) {
+    return <div className="fine-layout">{items.map(item =>
+      <div key={item.id} className="fine-frame" style={frameStyle(item, width * subdivisions, height * subdivisions)}>
+        {render(item)}
+      </div>)}</div>
+  }
   if (!rows.some(row => row.some(item => item.cell))) {
     return <div className="flow-layout">{rows.map((row, i) => <div className="built-row" key={i}>
-      {row.map(item => <div className="built-cell" key={item.id} style={cellStyle(item, flowWidth)}>{render(item, i)}</div>)}
+      {row.map(item => <div className="built-cell" key={item.id} style={cellStyle(item, flowWidth)}>{render(item)}</div>)}
     </div>)}</div>
   }
   const cells = positions(rows, width)
   return <div className="placed-layout" style={{ '--columns': width, '--rows': height } as CSSProperties}>
-    {rows.flatMap((row, i) => row.map(item => {
+    {rows.flatMap(row => row.map(item => {
       const cell = cells.get(item.id)!
       return <div className="built-cell" key={item.id} style={{ gridColumn: `${cell.x + 1} / span ${Math.min(width, item.span ?? 1)}`, gridRow: cell.y + 1 }}>
-        {render(item, i)}
+        {render(item)}
       </div>
     }))}
   </div>

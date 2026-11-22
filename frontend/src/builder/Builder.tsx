@@ -1,22 +1,15 @@
-import { useLayoutEffect, useRef, useState, type CSSProperties } from 'react'
+import { useLayoutEffect, useRef, useState, type KeyboardEvent, type CSSProperties } from 'react'
 import { api } from '../api'
-import { canPlace, ElementLayout } from './ElementLayout'
+import { canPlace, editableDraft, frameStyle, ElementLayout } from './ElementLayout'
 import { useElementDrag } from './useElementDrag'
 import { ElementView } from './TemplateCard'
 import { TemplateImport } from './TemplateImport'
 import { ActionEditor } from './ActionEditor'
-import { actionKinds, colors, emptyDraft, kinds, newAction, newItem, randomKey, type ActionKind, type Color,
-  type Draft, type Item, type Kind, type Template } from './model'
+import { actionKinds, colors, emptyDraft, kinds, newAction, newItem, randomKey, subdivisions, type ActionKind, type Color,
+  type Draft, type Frame, type Item, type Kind, type Template } from './model'
 import './builder.css'
 
 const symbols: Record<Kind, string> = { text: 'T', button: '▣', switch: '◐', slider: '↔', indicator: '●' }
-
-function swap<T>(values: T[], a: number, b: number) {
-  const next = [...values]
-  next[a] = values[b]
-  next[b] = values[a]
-  return next
-}
 
 interface Props {
   cellSize: number
@@ -33,16 +26,13 @@ export function Builder({ cellSize, columns, maxRows, templates, busy, setBusy, 
   const [draft, setDraft] = useState<Draft>(emptyDraft)
   const [templateId, setTemplateId] = useState('')
   const [creationKey, setCreationKey] = useState(() => randomKey())
-  const [rowIndex, setRow] = useState(0)
   const [elementId, setElement] = useState('')
   const [actionId, setAction] = useState('')
   const [tab, setTab] = useState<'element' | 'actions'>('element')
   const [kind, setKind] = useState<ActionKind>('time')
   const [error, setError] = useState('')
   const items = draft.rows.flat()
-  const row = draft.rows[rowIndex]
-  const item = row.find(e => e.id === elementId)
-  const index = row.findIndex(e => e.id === elementId)
+  const item = items.find(e => e.id === elementId)
   const action = draft.actions.find(a => a.id === actionId)
   const source = draft.actions.find(a => a.targets.some(t => t.element === elementId))
 
@@ -62,22 +52,49 @@ export function Builder({ cellSize, columns, maxRows, templates, busy, setBusy, 
   const scale = space ? Math.min(1, space / (Math.max(1, width) * cellSize)) : 1
 
   const surface = useRef<HTMLDivElement>(null)
-  const gridWidth = Math.max(1, Math.min(columns, Math.floor(width)))
-  const gridHeight = Math.max(1, Math.min(maxRows, Math.floor(height)))
-  const drag = useElementDrag(surface, items, gridWidth, gridHeight, (element, cell) => {
-    const existingRow = draft.rows.findIndex(r => r.some(e => e.id === element.id))
-    if (existingRow < 0) {
-      replaceRow([...row, { ...element, cell }])
-      select(rowIndex, element.id)
-    } else {
-      change({ rows: draft.rows.map(r => r.map(e => e.id === element.id ? { ...e, cell } : e)) })
-      select(existingRow, element.id)
-    }
-  })
+  const gridWidth = Math.max(1, Math.min(columns, Math.floor(width))) * subdivisions
+  const gridHeight = Math.max(1, Math.min(maxRows, Math.floor(height))) * subdivisions
+  const drag = useElementDrag(surface, items, gridWidth, gridHeight, place)
 
+  function select(id: string) {
+    setElement(id)
+    setTab('element')
+  }
+  function place(element: Item, frame: Frame) {
+    const next = { ...element, frame }
+    const updated = items.some(e => e.id === element.id)
+      ? items.map(e => e.id === element.id ? next : e) : [...items, next]
+    change({ rows: [updated] })
+    select(element.id)
+  }
+  function fromPalette(kind: Kind) {
+    const sizes: Record<Kind, [number, number]> = { text: [6, 3], button: [6, 3], indicator: [2, 2], switch: [9, 3], slider: [10, 4] }
+    const [w, h] = sizes[kind]
+    return { ...newItem(kind), frame: { x: 0, y: 0, width: Math.min(w, gridWidth), height: Math.min(h, gridHeight) } }
+  }
+  function add(kind: Kind) {
+    const element = fromPalette(kind)
+    for (let y = 0; y <= gridHeight - element.frame.height; y++) {
+      for (let x = 0; x <= gridWidth - element.frame.width; x++) {
+        const frame = { ...element.frame, x, y }
+        if (canPlace(element.id, frame, items, gridWidth, gridHeight)) return place(element, frame)
+      }
+    }
+    setError('Для элемента нет свободного места. Уменьшите соседние элементы или увеличьте шаблон.')
+  }
+  function arrow(e: KeyboardEvent, element: Item, resize: boolean) {
+    const steps: Record<string, [number, number]> = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] }
+    const step = steps[e.key]
+    if (!step) return
+    e.preventDefault()
+    const frame = { ...element.frame! }
+    frame[resize ? 'width' : 'x'] += step[0]
+    frame[resize ? 'height' : 'y'] += step[1]
+    if (canPlace(element.id, frame, items, gridWidth, gridHeight)) place(element, frame)
+  }
   function change(delta: Partial<Draft>) {
-    if ((delta.defaultWidth || delta.defaultHeight) && items.some(e => e.cell &&
-      !canPlace(e, e.cell, items, delta.defaultWidth ?? width, delta.defaultHeight ?? height))) {
+    if ((delta.defaultWidth || delta.defaultHeight) && items.some(e => e.frame &&
+      !canPlace(e.id, e.frame, items, (delta.defaultWidth ?? width) * subdivisions, (delta.defaultHeight ?? height) * subdivisions))) {
       setError('Сначала переместите закреплённые элементы в границы нового размера')
       return
     }
@@ -85,23 +102,13 @@ export function Builder({ cellSize, columns, maxRows, templates, busy, setBusy, 
     setDraft(old => ({ ...old, ...delta }))
   }
   function open(id: string) {
-    const next = templates.find(t => t.id === id) ?? emptyDraft()
+    const next = editableDraft(templates.find(t => t.id === id) ?? emptyDraft())
     if (!id) setCreationKey(randomKey())
-    setTemplateId(id); setDraft(next); setRow(0); setElement(next.rows[0][0]?.id ?? '')
+    setTemplateId(id); setDraft(next); setElement(next.rows.flat()[0]?.id ?? '')
     setAction(next.actions[0]?.id ?? ''); setError(''); setTab('element')
   }
-  function replaceRow(next: Item[]) {
-    change({ rows: draft.rows.map((r, i) => i === rowIndex ? next : r) })
-  }
   function updateItem(delta: Partial<Item>) {
-    if (item?.cell && delta.span !== undefined && !canPlace({ ...item, ...delta }, item.cell, items, width, height)) {
-      setError('Для такой ширины недостаточно свободных клеток')
-      return
-    }
-    replaceRow(row.map(e => e.id === elementId ? { ...e, ...delta } : e))
-  }
-  function select(i: number, id = '') {
-    setRow(i); setElement(id); setTab('element')
+    change({ rows: [items.map(e => e.id === elementId ? { ...e, ...delta } : e)] })
   }
   function bind(id: string, actions = draft.actions) {
     change({ actions: actions.map(a => ({ ...a, targets: [
@@ -120,6 +127,10 @@ export function Builder({ cellSize, columns, maxRows, templates, busy, setBusy, 
   async function save() {
     if (!Number.isInteger(width) || width < 1 || width > columns || !Number.isInteger(height) || height < 1 || height > maxRows) {
       setError('Проверьте ширину и высоту шаблона в клетках')
+      return
+    }
+    if (items.some(e => e.fontSize !== undefined && (!Number.isInteger(e.fontSize) || e.fontSize < 1 || e.fontSize > 144))) {
+      setError('Размер шрифта должен быть целым числом от 1 до 144 пт')
       return
     }
     setError(''); setBusy(true)
@@ -144,9 +155,7 @@ export function Builder({ cellSize, columns, maxRows, templates, busy, setBusy, 
     {error && <p role="alert">{error}</p>}
     <div className="builder-layout">
       <section className="builder-palette"><h3>Элементы</h3>
-        {(Object.keys(kinds) as Kind[]).map(k => <button key={k} {...drag.handlers(() => newItem(k), () => {
-          const e = newItem(k); replaceRow([...row, e]); select(rowIndex, e.id)
-        })}><span aria-hidden="true">{symbols[k]}</span>{kinds[k]}</button>)}
+        {(Object.keys(kinds) as Kind[]).map(k => <button key={k} {...drag.handlers('add', () => fromPalette(k), () => add(k))}><span aria-hidden="true">{symbols[k]}</span>{kinds[k]}</button>)}
       </section>
       <section className="builder-canvas"><h3>Предпросмотр</h3>
         <div className="preview-size">
@@ -162,35 +171,23 @@ export function Builder({ cellSize, columns, maxRows, templates, busy, setBusy, 
             <div className="builder-sheet-frame">
               <h4>{draft.name || 'Новый виджет'}</h4>
               <div className="preview-body" ref={surface} style={{ '--columns': gridWidth, '--rows': gridHeight } as CSSProperties}>
-                <ElementLayout rows={draft.rows} width={gridWidth} height={gridHeight} render={(el, i) =>
-                  <div className="builder-preview-cell">
-                    <div inert><ElementView item={el} /></div>
-                    <button aria-label={'Выбрать ' + kinds[el.kind] + ' · ' + el.label} aria-pressed={el.id === elementId}
-                      {...drag.handlers(() => el, () => select(i, el.id))} />
+                <ElementLayout rows={draft.rows} width={gridWidth / subdivisions} height={gridHeight / subdivisions} render={el =>
+                  <div className="builder-preview-cell" data-dragging={drag.target?.item.id === el.id}>
+                    <div className="frame-content" inert><ElementView item={el} /></div>
+                    <button className="element-select" aria-label={'Выбрать ' + kinds[el.kind] + ' · ' + el.label} aria-pressed={el.id === elementId}
+                      onKeyDown={e => arrow(e, el, false)} {...drag.handlers('move', () => el, () => select(el.id))} />
+                    {el.id === elementId && <button className="resize-handle" aria-label="Изменить размер элемента"
+                      title="Потяните за угол или используйте стрелки" onKeyDown={e => arrow(e, el, true)}
+                      {...drag.handlers('resize', () => el, () => select(el.id))} />}
                   </div>} />
                 {drag.target && <div aria-hidden="true" className="element-drop" data-valid={drag.target.valid}
-                  style={{ left: drag.target.cell.x / gridWidth * 100 + '%', top: drag.target.cell.y / gridHeight * 100 + '%',
-                    width: drag.target.span / gridWidth * 100 + '%', height: 100 / gridHeight + '%' }}><div inert><ElementView item={drag.target.item} /></div></div>}
+                  style={frameStyle(drag.target.item, gridWidth, gridHeight, drag.target.frame)}>
+                  <div className="frame-content" inert><ElementView item={drag.target.item} /></div>
+                </div>}
               </div>
             </div>
           </div>
         </div>
-        <div className="builder-row-tools">
-          <label>Строка <select value={rowIndex} onChange={e => {
-            const i = Number(e.target.value); select(i, draft.rows[i][0]?.id)
-          }}>{draft.rows.map((_, i) => <option key={i} value={i}>{i + 1}</option>)}</select></label>
-          <button aria-label="Поднять строку" disabled={!rowIndex} onClick={() => {
-            change({ rows: swap(draft.rows, rowIndex, rowIndex - 1) }); select(rowIndex - 1, elementId)
-          }}>↑</button>
-          <button aria-label="Опустить строку" disabled={rowIndex + 1 === draft.rows.length} onClick={() => {
-            change({ rows: swap(draft.rows, rowIndex, rowIndex + 1) }); select(rowIndex + 1, elementId)
-          }}>↓</button>
-          <button aria-label="Удалить строку" onClick={() => {
-            const rows = draft.rows.filter((_, n) => n !== rowIndex)
-            change({ rows: rows.length ? rows : [[]] }); select(0)
-          }}>×</button>
-        </div>
-        <button onClick={() => { change({ rows: [...draft.rows, []] }); select(draft.rows.length) }}>+ Строка</button>
       </section>
       <section className="builder-inspector"><div className="builder-tabs">
         <button aria-pressed={tab === 'element'} onClick={() => setTab('element')}>Свойства</button>
@@ -219,21 +216,16 @@ export function Builder({ cellSize, columns, maxRows, templates, busy, setBusy, 
           </select></label>}
           <button onClick={() => { if (source) setAction(source.id); setTab('actions') }}>Настроить действия</button>
         </>}
-        <label>Ширина элемента<select aria-label="Ширина элемента" value={item.span ?? ''} onChange={e => updateItem({ span: Number(e.target.value) || null })}>
-          <option value="">Автоматически</option>
-          {Array.from({ length: columns }, (_, i) => <option key={i} value={i + 1}>{i + 1} кл.</option>)}
-        </select></label>
-        {item.cell && <button onClick={() => updateItem({ cell: null })}>
-          Снять закрепление · столбец {item.cell.x + 1}, ряд {item.cell.y + 1}
-        </button>}
-        <label>Разместить в строке<select disabled={!!item.cell} value={rowIndex} onChange={e => {
-          const dest = Number(e.target.value)
-          change({ rows: draft.rows.map((r, i) => i === dest ? [...r, item] : i === rowIndex ? r.filter(x => x.id !== item.id) : r) })
-          select(dest, item.id)
-        }}>{draft.rows.map((_, i) => <option key={i} value={i}>{i + 1}</option>)}</select></label>
-        <div className="builder-order"><button disabled={!!item.cell || !index} onClick={() => replaceRow(swap(row, index, index - 1))}>← Левее</button>
-          <button disabled={!!item.cell || index === row.length - 1} onClick={() => replaceRow(swap(row, index, index + 1))}>Правее →</button></div>
-        <button onClick={() => { replaceRow(row.filter(e => e.id !== elementId)); setElement('') }}>Удалить элемент</button>
+        {item.kind !== 'indicator' && <>
+          <label>Шрифт<select value={item.fontFamily ?? 'system'}
+            onChange={e => updateItem({ fontFamily: e.target.value as Item['fontFamily'] })}>
+            <option value="system">Системный</option><option value="serif">С засечками</option>
+            <option value="monospace">Моноширинный</option>
+          </select></label>
+          <label>Размер шрифта, пт<input type="number" min={1} max={144} value={item.fontSize ?? 12}
+            onChange={e => updateItem({ fontSize: e.target.value ? Number(e.target.value) : undefined })} /></label>
+        </>}
+        <button onClick={() => { change({ rows: [items.filter(e => e.id !== elementId)] }); setElement('') }}>Удалить элемент</button>
       </> : <p>Выберите элемент в предпросмотре.</p>)}
       {tab === 'actions' && <>
         <label>Тип действия<select value={kind} onChange={e => setKind(e.target.value as ActionKind)}>

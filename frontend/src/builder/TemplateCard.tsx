@@ -31,8 +31,8 @@ export function ElementView({ item, inputs = {}, outputs = {}, change }: Element
     case 'switch':
       return <WidgetSwitch label={item.label} checked={Boolean(value ?? item.checked)} onChange={v => change?.(item, v)} />
     case 'slider':
-      return <label className="built-slider">{item.label}
-        <WidgetSlider label={item.label} min={item.minimum} max={item.maximum} step={item.step}
+      return <label className="built-slider">{item.label && <span>{item.label}</span>}
+        <WidgetSlider label={item.label || 'Слайдер'} min={item.minimum} max={item.maximum} step={item.step}
           value={Number(value ?? item.initial)} onChange={v => change?.(item, v)} />
       </label>
     case 'indicator': {
@@ -126,7 +126,10 @@ export function TemplateCard({ template, instance, active, patch }: Props) {
 
   return <div className="built-card">
     <ElementLayout rows={template.rows} width={template.defaultWidth ?? 4} height={template.defaultHeight ?? 2}
-      flowWidth={instance.width} render={item => <ElementView item={item} inputs={inputs} outputs={outputs} change={change} />} />
+      flowWidth={instance.width} render={item => {
+        const view = <ElementView item={item} inputs={inputs} outputs={outputs} change={change} />
+        return item.frame ? <div className="frame-content">{view}</div> : view
+      }} />
     {Object.entries(messages).filter(([, message]) => message).map(([id, message]) =>
       <p className="action-message" role="status" key={id}><b>{template.actions.find(a => a.id === id)?.name ?? 'Сохранение'}</b> · {message}</p>)}
   </div>

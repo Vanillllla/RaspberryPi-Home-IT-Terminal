@@ -24,11 +24,28 @@ class Cell(BaseModel):
     y: int = Field(strict=True, ge=0, lt=MAX_ROWS)
 
 
+SUBDIVISIONS = 5
+
+
+class Frame(BaseModel):
+    x: int = Field(strict=True, ge=0)
+    y: int = Field(strict=True, ge=0)
+    width: int = Field(strict=True, gt=0)
+    height: int = Field(strict=True, gt=0)
+
+    def overlaps(self, other):
+        return (self.x < other.x + other.width and other.x < self.x + self.width
+                and self.y < other.y + other.height and other.y < self.y + self.height)
+
+
 class Element(BaseModel):
     model_config = ConfigDict(allow_inf_nan=False)
     id: Id
     kind: Literal["text", "button", "switch", "slider", "indicator"]
     label: str = Field(max_length=2000)
+    frame: Frame | None = None
+    fontFamily: Literal["system", "serif", "monospace"] = "system"
+    fontSize: int = Field(default=12, strict=True, ge=1, le=144)
     cell: Cell | None = None
     span: int | None = Field(default=None, strict=True, ge=1, le=COLUMNS)
     command: str = Field(default="", max_length=100)
@@ -73,7 +90,7 @@ class Definition(BaseModel):
         return {e.id: e for row in self.rows for e in row}
 
     def runtime_elements(self):
-        return {k: e.model_dump(exclude={"cell", "span"}) for k, e in self.elements().items()}
+        return {k: e.model_dump(exclude={"cell", "span", "frame", "fontSize", "fontFamily"}) for k, e in self.elements().items()}
 
     def validate_links(self):
         elements = self.elements()
@@ -84,6 +101,15 @@ class Definition(BaseModel):
             raise ValueError("Нужны уникальные ID элементов (до 128 элементов)")
         if len({a.id for a in self.actions}) != len(self.actions):
             raise ValueError("ID действий должны быть уникальны")
+        frames = [e.frame for e in elements.values() if e.frame is not None]
+        if frames and (len(frames) != count or any(e.cell or e.span for e in elements.values())):
+            raise ValueError("Задайте frame для всех элементов без старых полей cell и span")
+        for index, frame in enumerate(frames):
+            if (frame.x + frame.width > self.defaultWidth * SUBDIVISIONS
+                    or frame.y + frame.height > self.defaultHeight * SUBDIVISIONS):
+                raise ValueError("Элемент выходит за границы мелкой сетки")
+            if any(frame.overlaps(other) for other in frames[:index]):
+                raise ValueError("Рамки элементов пересекаются")
         occupied = set()
         for e in elements.values():
             if e.cell is not None:

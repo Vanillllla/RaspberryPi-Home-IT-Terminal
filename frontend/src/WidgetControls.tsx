@@ -9,8 +9,8 @@ interface SwitchProps {
 
 export function WidgetSwitch({ label, checked, onChange }: SwitchProps) {
   return <label className="widget-switch">
-    <input type="checkbox" role="switch" checked={checked} onChange={event => onChange(event.currentTarget.checked)} />
-    {label}
+    <input type="checkbox" role="switch" aria-label={label || 'Переключатель'} checked={checked} onChange={event => onChange(event.currentTarget.checked)} />
+    {label && <span>{label}</span>}
   </label>
 }
 

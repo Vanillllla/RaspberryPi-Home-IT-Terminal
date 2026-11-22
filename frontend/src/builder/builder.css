@@ -1,4 +1,4 @@
-.widget-buttons, .builder-order, .builder-tabs, .builder-row-tools { display: flex; flex-wrap: wrap; gap: .4rem; }
+.widget-buttons, .builder-tabs { display: flex; flex-wrap: wrap; gap: .4rem; }
 .widget-buttons { justify-content: flex-end; }
 dialog:has(.builder) { width: min(1380px, 96vw); max-width: 96vw; height: 92dvh; max-height: 96dvh; padding: 1rem; }
 .builder { display: flex; flex-direction: column; gap: 1rem; }
@@ -35,19 +35,44 @@ dialog:has(.builder) { width: min(1380px, 96vw); max-width: 96vw; height: 92dvh;
 .placed-layout { height: 100%; display: grid; grid-template-columns: repeat(var(--columns), minmax(0,1fr)); grid-auto-rows: calc(100% / var(--rows)); overflow: auto; }
 .preview-body > .placed-layout { overflow: visible; }
 .placed-layout > .built-cell { overflow: auto; padding: 2px; }
-.widget-content:has(.placed-layout), .built-card:has(> .placed-layout) { height: 100%; }
-.built-card:has(> .placed-layout) { display: block; }
+.widget-content:has(:is(.placed-layout, .fine-layout)), .built-card:has(> :is(.placed-layout, .fine-layout)) { height: 100%; }
+.built-card:has(> :is(.placed-layout, .fine-layout)) { display: block; }
 .builder-preview-cell > button, .builder-palette button { touch-action: none; user-select: none; cursor: grab; }
-.element-drop { position: absolute; pointer-events: none; overflow: hidden; padding: 2px; background: var(--surface); opacity: .86; border: 2px dashed var(--focus); }
-.element-drop[data-valid=false] { border-color: #ae3535; }
-.builder-row-tools { align-items: center; }
-.builder-row-tools label { display: flex; align-items: center; gap: .4rem; }
-.builder-row-tools button { min-height: 32px; padding: .18rem .5rem; }
+.element-drop { position: absolute; z-index: 2; pointer-events: none; outline: 2px dashed var(--focus); outline-offset: -2px; background: var(--surface); opacity: .88; }
+.builder-preview-cell[data-dragging=true] { opacity: .3; }
+.element-drop[data-valid=false] { outline-color: #ae3535; }
 .builder button[aria-pressed=true]:not(.builder-preview-cell button) { background: var(--accent); color: var(--on-accent); }
-.builder-preview-cell { position: relative; }
-.placed-layout .builder-preview-cell { height: 100%; overflow: hidden; }
-.builder-preview-cell > button { position: absolute; inset: 0; width: 100%; min-height: 0; background: transparent; border: 0; }
-.builder-preview-cell > button[aria-pressed=true] { box-shadow: inset 0 0 0 2px var(--accent); }
+.fine-layout { position: relative; width: 100%; height: 100%; }
+.fine-frame { position: absolute; }
+.frame-content, .builder-preview-cell { width: 100%; height: 100%; position: relative; }
+.frame-content { container-type: size; overflow: clip; overflow-wrap: anywhere; }
+.frame-content > .widget-button { width: 100%; height: 100%; min-height: 0; overflow: hidden; padding: 0 .15em; }
+.frame-content > .built-indicator { width: 100%; height: 100%; min-height: 0; justify-content: center; }
+.frame-content .built-indicator i { width: min(100cqw, 100cqh); height: min(100cqw, 100cqh); }
+.frame-content > .widget-switch { width: 100%; height: 100%; min-height: 0; }
+.frame-content .widget-switch input {
+  --switch-height: min(100cqh, 60cqw);
+  width: calc(var(--switch-height) * 1.66); height: var(--switch-height); border-radius: 999px;
+  padding: 0 min(.2rem, 4cqw);
+}
+.frame-content .widget-switch:has(span) input { --switch-height: min(100cqh, 32cqw); }
+.frame-content .widget-switch input::before { height: 75%; width: auto; aspect-ratio: 1; }
+.frame-content > .built-slider { display: flex; flex-direction: column; height: 100%; }
+.frame-content .built-slider > span:first-child:not(.widget-range) { max-height: 60%; overflow: hidden; }
+.frame-content .widget-range {
+  flex: 1; min-height: 0; min-width: 0; container-type: size;
+}
+.frame-content .widget-slider-track, .frame-content .widget-slider {
+  --thumb: min(80cqh, 55cqw); --inset: min(10cqh, 4cqw);
+}
+.builder-preview-cell > button { position: absolute; min-height: 0; padding: 0; }
+.builder-preview-cell > .element-select { inset: 0; width: 100%; background: transparent; border: 1px dashed var(--line); border-radius: 3px; }
+.builder-preview-cell > .element-select[aria-pressed=true] { border: 2px solid var(--accent); }
+.builder-preview-cell > .resize-handle {
+  right: 0; bottom: 0; width: 20px; height: 20px; max-width: 58%; max-height: 68%;
+  border: 1px solid var(--on-accent); border-radius: 6px 0 3px 0; background: var(--accent); cursor: nwse-resize;
+}
+.resize-handle::after { content: ""; position: absolute; inset: 25%; border: solid var(--on-accent); border-width: 0 2px 2px 0; }
 .builder-inspector fieldset { min-width: 0; margin: 0; border: 1px solid var(--line); border-radius: 8px; }
 .builder-binding { padding-block: .3rem; }
 .builder label.builder-check { display: flex; gap: .5rem; align-items: center; min-height: 36px; }
