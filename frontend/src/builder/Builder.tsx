@@ -5,8 +5,8 @@ import { useElementDrag } from './useElementDrag'
 import { ElementView } from './TemplateCard'
 import { TemplateImport } from './TemplateImport'
 import { ActionEditor } from './ActionEditor'
-import { actionKinds, colors, emptyDraft, kinds, newAction, newItem, randomKey, subdivisions, type ActionKind, type Color,
-  type Draft, type Frame, type Item, type Kind, type Template } from './model'
+import { actionKinds, actionLabel, colors, emptyDraft, kinds, newAction, newItem, randomKey, subdivisions, unusedCommand, type ActionKind, type Color,
+  type Action, type Draft, type Frame, type Item, type Kind, type Template } from './model'
 import './builder.css'
 
 const symbols: Record<Kind, string> = { text: 'T', button: '▣', switch: '◐', slider: '↔', indicator: '●' }
@@ -35,6 +35,7 @@ export function Builder({ cellSize, columns, maxRows, templates, busy, setBusy, 
   const item = items.find(e => e.id === elementId)
   const action = draft.actions.find(a => a.id === actionId)
   const source = draft.actions.find(a => a.targets.some(t => t.element === elementId))
+  const sentActions = item?.command ? draft.actions.filter(a => a.trigger === 'command' && a.command === item.command) : []
 
   const width = draft.defaultWidth ?? 4
   const height = draft.defaultHeight ?? 2
@@ -105,24 +106,40 @@ export function Builder({ cellSize, columns, maxRows, templates, busy, setBusy, 
     const next = editableDraft(templates.find(t => t.id === id) ?? emptyDraft())
     if (!id) setCreationKey(randomKey())
     setTemplateId(id); setDraft(next); setElement(next.rows.flat()[0]?.id ?? '')
-    setAction(next.actions[0]?.id ?? ''); setError(''); setTab('element')
+    setAction(''); setError(''); setTab('element')
   }
   function updateItem(delta: Partial<Item>) {
     change({ rows: [items.map(e => e.id === elementId ? { ...e, ...delta } : e)] })
   }
-  function bind(id: string, actions = draft.actions) {
-    change({ actions: actions.map(a => ({ ...a, targets: [
+  function bind(id: string) {
+    if (id && id === source?.id) return
+    change({ actions: draft.actions.map(a => ({ ...a, targets: [
       ...a.targets.filter(t => t.element !== elementId),
       ...(a.id === id ? [{ element: elementId, field: a.kind === 'reach' ? (item?.kind === 'indicator' ? 'color' : 'text') : '' }] : []),
     ] })) })
   }
-  function setMode(mode: string) {
+  function createUpdate(trigger: Action['trigger']) {
+    const base = source ?? newAction('time')
+    const previousTarget = source?.targets.find(t => t.element === elementId)
+    const next = {
+      ...base,
+      id: source && source.targets.length > 1 ? 'a' + randomKey(5) : base.id,
+      trigger,
+      command: trigger === 'command' ? unusedCommand(draft) : '',
+      targets: [previousTarget ?? { element: elementId, field: '' }],
+    }
+    const actions = draft.actions.filter(a => a.id !== next.id).map(a => a === source
+      ? { ...a, targets: a.targets.filter(t => t.element !== elementId) } : a)
+    change({ actions: [...actions, next] })
+    return next.id
+  }
+  function setMode(mode: Action['trigger'] | 'static') {
     if (mode === 'static') return bind('')
-    const existing = draft.actions.find(a => a.trigger === mode)
-    if (existing) return bind(existing.id)
-    const next = newAction('time')
-    next.trigger = mode === 'timer' ? 'timer' : 'command'
-    bind(next.id, [...draft.actions, next])
+    createUpdate(mode)
+  }
+  function showActions(id = source?.id ?? sentActions[0]?.id ?? '') {
+    setAction(id)
+    setTab('actions')
   }
   async function save() {
     if (!Number.isInteger(width) || width < 1 || width > columns || !Number.isInteger(height) || height < 1 || height > maxRows) {
@@ -191,14 +208,14 @@ export function Builder({ cellSize, columns, maxRows, templates, busy, setBusy, 
       </section>
       <section className="builder-inspector"><div className="builder-tabs">
         <button aria-pressed={tab === 'element'} onClick={() => setTab('element')}>Свойства</button>
-        <button aria-pressed={tab === 'actions'} onClick={() => setTab('actions')}>Действия</button>
+        <button aria-pressed={tab === 'actions'} onClick={() => { if (tab !== 'actions') showActions() }}>Действия</button>
       </div>
       {tab === 'element' && (item ? <>
         <h4>{kinds[item.kind]}</h4>
         <label>Подпись<input value={item.label} onChange={e => updateItem({ label: e.target.value })} /></label>
         {['button', 'switch', 'slider'].includes(item.kind) && <>
           <label>Отправить команду<input value={item.command} placeholder="Например, refresh" onChange={e => updateItem({ command: e.target.value })} /></label>
-          {item.command && <small>Действия · {draft.actions.filter(a => a.trigger === 'command' && a.command === item.command).map(a => a.name).join(', ') || 'не назначены'}</small>}
+          {item.command && <small>Действия · {sentActions.map(a => a.name).join(', ') || 'не назначены'}</small>}
         </>}
         {item.kind === 'switch' && <label className="builder-check"><input type="checkbox" checked={item.checked}
           onChange={e => updateItem({ checked: e.target.checked })} />Включён изначально</label>}
@@ -208,13 +225,16 @@ export function Builder({ cellSize, columns, maxRows, templates, busy, setBusy, 
         {item.kind === 'indicator' && <label>Начальный цвет<select value={item.color} onChange={e => updateItem({ color: e.target.value as Color })}>
           {Object.entries(colors).map(([k,v]) => <option value={k} key={k}>{v}</option>)}</select></label>}
         {['text', 'indicator'].includes(item.kind) && <>
-          <label>Обновление<select aria-label="Обновление" value={source?.trigger ?? 'static'} onChange={e => setMode(e.target.value)}>
+          <label>Обновление<select aria-label="Обновление" value={source?.trigger ?? 'static'} onChange={e => setMode(e.target.value as Action['trigger'] | 'static')}>
             <option value="static">Без обновления</option><option value="timer">По таймеру</option><option value="command">По команде</option>
           </select></label>
           {source && <label>Действие обновления<select value={source.id} onChange={e => bind(e.target.value)}>
-            {draft.actions.filter(a => a.trigger === source.trigger).map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
+            {draft.actions.filter(a => a.trigger === source.trigger).map(a => <option key={a.id} value={a.id}>{actionLabel(a)}</option>)}
           </select></label>}
-          <button onClick={() => { if (source) setAction(source.id); setTab('actions') }}>Настроить действия</button>
+          {source && <button onClick={() => showActions(source.id)}>Настроить действия</button>}
+          {source && source.targets.length > 1 && <button onClick={() => showActions(createUpdate(source.trigger))}>
+            Создать отдельное действие
+          </button>}
         </>}
         {item.kind !== 'indicator' && <>
           <label>Шрифт<select value={item.fontFamily ?? 'system'}
@@ -231,15 +251,17 @@ export function Builder({ cellSize, columns, maxRows, templates, busy, setBusy, 
         <label>Тип действия<select value={kind} onChange={e => setKind(e.target.value as ActionKind)}>
           {Object.entries(actionKinds).map(([k,v]) => <option key={k} value={k}>{v}</option>)}</select></label>
         <button onClick={() => {
-          const a = newAction(kind); change({ actions: [...draft.actions, a] }); setAction(a.id)
+          const a = { ...newAction(kind), command: unusedCommand(draft) }
+          change({ actions: [...draft.actions, a] }); setAction(a.id)
         }}>Добавить действие</button>
         {!!draft.actions.length && <label>Действие<select value={actionId} onChange={e => setAction(e.target.value)}>
-          {draft.actions.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}</select></label>}
+          <option value="">Выберите действие</option>
+          {draft.actions.map(a => <option key={a.id} value={a.id}>{actionLabel(a)}</option>)}</select></label>}
         {action && <><ActionEditor action={action} items={items} update={delta =>
           change({ actions: draft.actions.map(a => a.id === action.id ? { ...a, ...delta } : a) })} />
           <button onClick={() => {
             const actions = draft.actions.filter(a => a.id !== actionId)
-            change({ actions }); setAction(actions[0]?.id ?? '')
+            change({ actions }); setAction('')
           }}>Удалить действие</button></>}
       </>}
       </section>

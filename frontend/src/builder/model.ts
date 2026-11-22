@@ -39,13 +39,28 @@ export function randomKey(bytes = 16) {
   return Array.from(crypto.getRandomValues(new Uint8Array(bytes)), b => b.toString(16).padStart(2, '0')).join('')
 }
 export function newItem(kind: Kind): Item {
-  return { id: 'e' + randomKey(5), kind, label: kinds[kind], command: kind === 'button' ? 'refresh' : '', checked: false,
+  return { id: 'e' + randomKey(5), kind, label: kinds[kind], command: '', checked: false,
     minimum: 0, maximum: 100, step: 1, initial: 0, color: 'green' }
 }
 export function newAction(kind: ActionKind): Action {
   return { id: 'a' + randomKey(5), kind, name: actionKinds[kind], trigger: kind === 'time' ? 'timer' : 'command',
     command: 'refresh', interval: 1, host: '', port: null, url: '', path: '',
     code: 'def run(context):\n    return {"text": "Доступен", "color": "green"}', targets: [] }
+}
+
+export function unusedCommand(draft: Draft) {
+  const used = new Set([
+    ...draft.actions.map(action => action.command),
+    ...draft.rows.flat().map(item => item.command),
+  ])
+  if (!used.has('refresh')) return 'refresh'
+  let number = 2
+  while (used.has('refresh-' + number)) number++
+  return 'refresh-' + number
+}
+
+export function actionLabel(action: Action) {
+  return action.trigger === 'command' && action.command ? action.name + ' · ' + action.command : action.name
 }
 export function emptyDraft(): Draft {
   return { name: '', rows: [[]], actions: [], revision: 0 }
