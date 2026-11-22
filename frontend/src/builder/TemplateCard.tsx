@@ -14,6 +14,9 @@ function TextResult({ value }: { value: string }) {
       const wrapped = parsed && Object.keys(parsed).length === 2 && Object.hasOwn(parsed, 'value')
         && Array.isArray(parsed.commands) && parsed.commands.every((command: unknown) => typeof command === 'string')
       const result = wrapped ? parsed.value : parsed
+      if (wrapped && (typeof result === 'string' || typeof result === 'number')) {
+        return <span className="widget-output">{result}</span>
+      }
       if (result && typeof result === 'object' && Object.keys(result).length === 2 && typeof result.color === 'string' && Object.hasOwn(colors, result.color)
         && (typeof result.text === 'string' || typeof result.text === 'number')) {
         return <span className="widget-output widget-status" data-color={result.color}>{result.text}</span>
