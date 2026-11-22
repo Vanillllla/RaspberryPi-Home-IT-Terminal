@@ -1,4 +1,5 @@
 """Stored card definitions, instance inputs and action dispatch."""
+import base64
 import json
 import math
 import re
@@ -43,8 +44,11 @@ class Frame(BaseModel):
 class Element(BaseModel):
     model_config = ConfigDict(allow_inf_nan=False)
     id: Id
-    kind: Literal["text", "button", "switch", "slider", "indicator", "input"]
+    kind: Literal["text", "button", "switch", "slider", "indicator", "input", "shortcut"]
     label: str = Field(max_length=2000)
+    href: str = Field(default="", max_length=4096)
+    png: str = Field(default="", max_length=350000)
+    siteIcon: bool = False
     defaultLabel: bool = False
     frame: Frame | None = None
     fontFamily: Literal["system", "serif", "monospace"] = "system"
@@ -119,6 +123,20 @@ class Definition(BaseModel):
                 raise ValueError(tr("Рамки элементов пересекаются", "Element frames overlap"))
         occupied = set()
         for e in elements.values():
+            if e.kind == "shortcut":
+                url = urlsplit(e.href)
+                if url.scheme not in ("http", "https") or not url.hostname:
+                    raise ValueError(tr("Введите адрес HTTP или HTTPS", "Enter an HTTP or HTTPS URL"))
+                if not (e.label.strip() or e.png or e.siteIcon):
+                    raise ValueError(tr("Добавьте подпись или иконку", "Add a label or an icon"))
+                if e.png:
+                    prefix, _, data = e.png.partition(",")
+                    try:
+                        valid = prefix == "data:image/png;base64" and base64.b64decode(data, validate=True).startswith(bytes.fromhex("89504e470d0a1a0a"))
+                    except ValueError:
+                        valid = False
+                    if not valid:
+                        raise ValueError(tr("Выберите PNG-картинку", "Choose a PNG image"))
             if e.cell is not None:
                 end = e.cell.x + (e.span or 1)
                 if end > self.defaultWidth or e.cell.y >= self.defaultHeight:
@@ -164,6 +182,7 @@ def element_label(element):
         "switch": ("Переключатель", "Switch"),
         "slider": ("Слайдер", "Slider"),
         "indicator": ("Индикатор состояния", "Status indicator"),
+        "shortcut": ("Ярлык", "Shortcut"),
         "input": ("Поле ввода", "Input field"),
     }[element.kind]
     return tr(russian, english)

@@ -129,3 +129,7 @@ dialog:has(.builder) { width: min(1380px, 96vw); max-width: 96vw; height: 92dvh;
   .builder-palette h3 { grid-column: 1/-1; }
   .widget-buttons button { padding-inline: .6rem; }
 }
+
+.builder-palette h4 { grid-column: 1 / -1; margin: .35rem 0 0; }
+.widget-shortcut { display: inline-flex; align-items: center; gap: .35em; max-width: 100%; overflow-wrap: anywhere; color: inherit; }
+.widget-shortcut img { width: 1.5em; height: 1.5em; object-fit: contain; }

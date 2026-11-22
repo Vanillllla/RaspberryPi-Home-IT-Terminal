@@ -11,7 +11,7 @@ import { actionKinds, actionLabel, actionName, itemLabel, colors, contextExpress
   type Action, type Draft, type Frame, type Item, type Kind, type Template } from './model'
 import './builder.css'
 
-const symbols: Record<Kind, string> = { text: 'T', button: '▣', switch: '◐', slider: '↔', indicator: '●', input: '▏' }
+const symbols: Record<Kind, string> = { text: 'T', button: '▣', switch: '◐', slider: '↔', indicator: '●', input: '▏', shortcut: '↗' }
 
 async function copyExpression(expression: string, origin: HTMLElement) {
   if (navigator.clipboard?.writeText) {
@@ -108,8 +108,11 @@ export function Builder({ cellSize, columns, maxRows, templates, busy, setBusy, 
     change({ rows: [updated] })
     select(element.id)
   }
+  function paletteButton(k: Kind) {
+    return <button key={k} {...drag.handlers('add', () => fromPalette(k), () => add(k))}><span aria-hidden="true">{symbols[k]}</span>{t(kinds[k])}</button>
+  }
   function fromPalette(kind: Kind) {
-    const sizes: Record<Kind, [number, number]> = { text: [6, 3], button: [6, 3], indicator: [2, 2], switch: [9, 3], slider: [10, 4], input: [14, 3] }
+    const sizes: Record<Kind, [number, number]> = { text: [6, 3], button: [6, 3], indicator: [2, 2], switch: [9, 3], slider: [10, 4], input: [14, 3], shortcut: [8, 3] }
     const [w, h] = sizes[kind]
     return { ...newItem(kind, t), frame: { x: 0, y: 0, width: Math.min(w, gridWidth), height: Math.min(h, gridHeight) } }
   }
@@ -228,7 +231,10 @@ export function Builder({ cellSize, columns, maxRows, templates, busy, setBusy, 
     {error && <p role="alert">{error}</p>}
     <div className="builder-layout">
       <section className="builder-palette"><h3>{t('Элементы')}</h3>
-        {(Object.keys(kinds) as Kind[]).map(k => <button key={k} {...drag.handlers('add', () => fromPalette(k), () => add(k))}><span aria-hidden="true">{symbols[k]}</span>{t(kinds[k])}</button>)}
+        <h4>{t('Простые элементы')}</h4>
+        {(Object.keys(kinds) as Kind[]).filter(k => k !== 'shortcut').map(paletteButton)}
+        <h4>{t('Элементы интеграций')}</h4>
+        {paletteButton('shortcut')}
       </section>
       <section className="builder-canvas"><h3>{t('Предпросмотр')}</h3>
         <div className="preview-size">
@@ -275,6 +281,29 @@ export function Builder({ cellSize, columns, maxRows, templates, busy, setBusy, 
       {tab === 'element' && (item ? <>
         <h4>{t(kinds[item.kind])}</h4>
         <label>{t('Подпись')}<input value={itemLabel(item, t)} onChange={e => updateItem({ label: e.target.value, defaultLabel: false })} /></label>
+        {item.kind === 'shortcut' && <>
+          <label>{t('Адрес ссылки')}<input type="url" placeholder="https://example.com" value={item.href ?? ''}
+            onChange={e => updateItem({ href: e.target.value })} /></label>
+          <label className="builder-check"><input type="checkbox" checked={!!item.siteIcon}
+            onChange={e => updateItem({ siteIcon: e.target.checked })} />{t('Использовать иконку сайта')}</label>
+          {!item.siteIcon && <label>{t('Иконка PNG')}<input type="file" accept="image/png" onChange={e => {
+            const file = e.target.files?.[0]
+            e.target.value = ''
+            if (!file) return
+            const invalid = () => setError(t('Выберите PNG до 256 КиБ'))
+            if (file.size > 262144) { invalid(); return }
+            const reader = new FileReader()
+            reader.onerror = invalid
+            reader.onload = () => {
+              const png = String(reader.result)
+              if (!png.startsWith('data:image/png;base64,iVBORw0KGgo')) { invalid(); return }
+              setError('')
+              setDraft(old => ({ ...old, rows: old.rows.map(row => row.map(el => el.id === item.id ? { ...el, png } : el)) }))
+            }
+            reader.readAsDataURL(file)
+          }} /></label>}
+          {!item.siteIcon && item.png && <button onClick={() => updateItem({ png: '' })}>{t('Убрать иконку')}</button>}
+        </>}
         {item.kind === 'input' && <>
           <label>{t('Формат поля')}<select value={item.inputMode ?? 'text'}
             onChange={e => updateItem({ inputMode: e.target.value as Item['inputMode'] })}>

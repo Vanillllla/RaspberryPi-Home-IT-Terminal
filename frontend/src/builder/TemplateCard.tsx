@@ -26,6 +26,21 @@ function TextResult({ value }: { value: string }) {
   return <span className="widget-output">{value}</span>
 }
 
+function Shortcut({ item, label }: { item: Item; label: string }) {
+  const { t } = useTranslation()
+  let url: URL | undefined
+  try { url = new URL(item.href ?? '') } catch { /* Incomplete address in the editor. */ }
+  const href = url && ['http:', 'https:'].includes(url.protocol) ? url.href : undefined
+  const icon = item.siteIcon ? (href && new URL('/favicon.ico', href).href) : item.png
+  const [failedIcon, setFailedIcon] = useState('')
+  const showIcon = icon && icon !== failedIcon
+  return <a className="widget-shortcut" href={href} target="_blank" rel="noopener noreferrer"
+    aria-label={label || href || t('Ярлык')}>
+    {showIcon && <img src={icon} alt="" onError={() => setFailedIcon(icon)} referrerPolicy="no-referrer" />}
+    {label || (!showIcon && '↗')}
+  </a>
+}
+
 interface ElementProps {
   item: Item
   inputs?: Inputs
@@ -37,6 +52,8 @@ export function ElementView({ item, inputs = {}, outputs = {}, change }: Element
   const label = itemLabel(item, t)
   const value = inputs[item.id]
   switch (item.kind) {
+    case 'shortcut':
+      return <Shortcut item={item} label={label} />
     case 'input':
       return <WidgetInput item={item} value={typeof value === 'string' ? value : ''} change={v => change?.(item, v)} />
     case 'button':
