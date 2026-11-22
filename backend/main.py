@@ -51,6 +51,21 @@ class ContentAlignment(BaseModel):
     verticalAlign: Literal["top", "center", "bottom"]
 
 
+Palette = Literal["white", "black", "green", "red", "purple", "yellow", "orange"]
+
+
+class CardAppearance(BaseModel):
+    titlePalette: Palette
+    cardPalette: Palette
+    horizontalAlign: Literal["left", "center", "right"] | None = None
+    verticalAlign: Literal["top", "center", "bottom"] | None = None
+
+
+class WidgetConfiguration(WidgetSize):
+    appearance: CardAppearance
+    settings: dict | None = None
+
+
 class Settings(BaseModel):
     settings: dict
 
@@ -129,28 +144,42 @@ def create_widget(desktop_id: int, body: AddWidget):
         return instance(row)
 
 
-def update_layout(widget_id, *, rows, slot=None, size=None):
+def update_layout(conn, widget_id, *, rows, slot=None, size=None):
+    w = conn.execute("SELECT * FROM widgets WHERE id=?", (widget_id,)).fetchone()
+    if w is None:
+        raise HTTPException(404, "Экземпляр отсутствует")
+    slot = w["slot"] if slot is None else slot
+    width, height = (size.width, size.height) if size else (w["width"], w["height"])
+    reason = Layout(conn, w["desktop_id"], rows=rows, exclude=widget_id).conflict(slot, width, height)
+    if reason:
+        raise HTTPException(409, reason)
+    conn.execute("UPDATE widgets SET slot=?, width=?, height=? WHERE id=?", (slot, width, height, widget_id))
+    return {"slot": slot, "width": width, "height": height}
+
+
+@app.put("/api/widgets/{widget_id}/configuration")
+def configure_widget(widget_id: int, body: WidgetConfiguration):
     with database(write=True) as conn:
-        w = conn.execute("SELECT * FROM widgets WHERE id=?", (widget_id,)).fetchone()
-        if w is None:
-            raise HTTPException(404, "Экземпляр отсутствует")
-        slot = w["slot"] if slot is None else slot
-        width, height = (size.width, size.height) if size else (w["width"], w["height"])
-        reason = Layout(conn, w["desktop_id"], rows=rows, exclude=widget_id).conflict(slot, width, height)
-        if reason:
-            raise HTTPException(409, reason)
-        conn.execute("UPDATE widgets SET slot=?, width=?, height=? WHERE id=?", (slot, width, height, widget_id))
-        return {"slot": slot, "width": width, "height": height}
+        update_layout(conn, widget_id, rows=body.rows, size=body)
+        appearance = body.appearance.model_dump(exclude_none=True)
+        row = conn.execute(
+            """UPDATE widgets SET appearance=json_patch(appearance, ?), settings=COALESCE(?, settings)
+               WHERE id=? RETURNING *""",
+            (json.dumps(appearance), json.dumps(body.settings) if body.settings is not None else None, widget_id),
+        ).fetchone()
+        return instance(row)
 
 
 @app.put("/api/widgets/{widget_id}/position")
 def move_widget(widget_id: int, body: MoveWidget):
-    return update_layout(widget_id, rows=body.rows, slot=body.slot)
+    with database(write=True) as conn:
+        return update_layout(conn, widget_id, rows=body.rows, slot=body.slot)
 
 
 @app.put("/api/widgets/{widget_id}/size")
 def resize_widget(widget_id: int, body: WidgetSize):
-    return update_layout(widget_id, rows=body.rows, size=body)
+    with database(write=True) as conn:
+        return update_layout(conn, widget_id, rows=body.rows, size=body)
 
 
 @app.put("/api/widgets/{widget_id}/alignment")

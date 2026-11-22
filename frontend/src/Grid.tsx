@@ -1,3 +1,4 @@
+import { cardAppearance } from './appearance'
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type PointerEvent, type ReactNode } from 'react'
 import { placementError } from './layout'
 import type { WidgetInstance } from './plugin'
@@ -221,7 +222,7 @@ export function Grid({ widgets, columns, maxRows, reportRows, reportCellSize, in
         {widgets.map(w => <div key={w.id} data-slot={w.slot} data-widget={w.id}
           className={'tile' + (dragging === w.id ? ' lifted' : '') + (selected?.id === w.id ? ' selected' : '')}
           style={geometry(pending?.id === w.id ? pending.slot : w.slot, w.width, w.height)}>
-          <article onPointerDownCapture={e => start(e, w)} onPointerMove={e => pointerMove(e, w)}
+          <article data-palette={cardAppearance(w.appearance).cardPalette} onPointerDownCapture={e => start(e, w)} onPointerMove={e => pointerMove(e, w)}
             onPointerUp={e => pointerUp(e, w)} onPointerCancel={cancel} onLostPointerCapture={cancel}
             onContextMenu={e => { if (press.current?.dragging) e.preventDefault() }}
             onClickCapture={e => {
@@ -240,7 +241,7 @@ export function Grid({ widgets, columns, maxRows, reportRows, reportCellSize, in
                 }}>
                 <span className="grip" aria-hidden="true">⠿</span>
               </button>
-              <span className="card-title" title={title(w)}>{title(w)}</span>
+              <span className="card-title" title={title(w)}><span data-palette={cardAppearance(w.appearance).titlePalette}>{title(w)}</span></span>
               <button className="widget-actions" aria-label="Действия с виджетом" aria-haspopup="dialog"
                 title="Действия с виджетом" onClick={() => openActions(w.id)}>⋯</button>
             </div>

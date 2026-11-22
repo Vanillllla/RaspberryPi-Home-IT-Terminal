@@ -3,7 +3,6 @@
 .demo-row { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: .25rem; }
 .demo-sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 .demo-form input { width: 100%; min-height: 44px; padding: .5rem .7rem; font: inherit; border: 1px solid var(--line); border-radius: 8px; }
-.demo-form button { justify-self: start; }
 .demo-form p { margin: 0; }
 .demo-details { overflow-wrap: anywhere; }
 .demo-details dl { display: grid; grid-template-columns: auto 1fr; gap: .5rem 1rem; }

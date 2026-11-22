@@ -6,8 +6,8 @@ import type { Inputs, Outputs } from './builder/model'
 import { DesktopNavigation } from './DesktopNavigation'
 import { DesktopPager } from './DesktopPager'
 import { placementError } from './layout'
-import { AlignmentSettings, contentAlignment } from './AlignmentSettings'
-import { SizeSettings } from './SizeSettings'
+import { cardAppearance } from './appearance'
+import { InstanceSettings } from './InstanceSettings'
 import { Grid } from './Grid'
 import { PluginView } from './PluginView'
 import type { WidgetInstance } from './plugin'
@@ -134,7 +134,7 @@ export function App() {
     })
   }
 
-  function view(widget: WidgetInstance, mode: 'Widget' | 'Details' | 'Settings') {
+  function view(widget: WidgetInstance, mode: 'Widget' | 'Details') {
     const manifest = data?.plugins.find(p => p.id === widget.plugin_id)
     if (!manifest) return <p>Плагин недоступен. Размещение сохранено.</p>
     return <PluginView instance={widget} mode={mode} saveSettings={async settings => {
@@ -155,7 +155,7 @@ export function App() {
   function renderCard(widget: WidgetInstance) {
     const capabilities = data?.plugins.find(p => p.id === widget.plugin_id)?.capabilities ?? []
     const template = data?.templates.find(t => t.id === widget.plugin_id)
-    const alignment = contentAlignment(widget.appearance)
+    const alignment = cardAppearance(widget.appearance)
     return <div className="widget-content" data-horizontal={alignment.horizontalAlign} data-vertical={alignment.verticalAlign}>
       {template ? <TemplateCard key={template.revision} template={template} instance={widget}
         active={desktop?.id === widget.desktop_id && panel?.mode !== 'builder'} patch={patchRuntime} /> : view(widget, 'Widget')}
@@ -298,21 +298,21 @@ export function App() {
       })}>Удалить виджет</button>
     </Modal>}
     {data && desktop && opened && panel.mode !== 'actions' && <Modal title={panel.mode === 'Settings' ? 'Настройки' : 'Подробнее'}
-      close={() => setPanel(null)}>{panel.mode === 'Details' ? <div className="details-view">{view(opened, 'Details')}</div> : <>
-        <SizeSettings key={opened.id} widget={opened} save={async (width, height) => {
-          const reason = placementError(data.widgets.filter(w => w.desktop_id === opened.desktop_id),
-            data.columns, rows, opened.id, opened.slot % data.columns,
-            Math.floor(opened.slot / data.columns), width, height)
-          if (reason) throw new Error(reason)
-          await api('widgets/' + opened.id + '/size', 'PUT', { width, height, rows })
-          await reload()
-        }} />
-        <AlignmentSettings key={'alignment-' + opened.id} appearance={opened.appearance} save={async (horizontalAlign, verticalAlign) => {
-          await api('widgets/' + opened.id + '/alignment', 'PUT', { horizontalAlign, verticalAlign })
-          await reload()
-        }} />
-        {data?.plugins.find(p => p.id === opened.plugin_id)?.capabilities.includes('settings') &&
-          <section><h3>Настройки плагина</h3>{view(opened, 'Settings')}</section>}
-      </>}</Modal>}
+      pending={busy} close={() => setPanel(null)}>{panel.mode === 'Details' ? <div className="details-view">{view(opened, 'Details')}</div> :
+        <InstanceSettings key={opened.id} widget={opened} busy={busy}
+          pluginSettings={data.plugins.some(p => p.id === opened.plugin_id && p.capabilities.includes('settings'))}
+          save={async draft => {
+            const reason = placementError(data.widgets.filter(w => w.desktop_id === opened.desktop_id),
+              data.columns, rows, opened.id, opened.slot % data.columns, Math.floor(opened.slot / data.columns),
+              draft.width, draft.height)
+            if (reason) throw new Error(reason)
+            setBusy(true)
+            try {
+              const updated = await api<WidgetInstance>('widgets/' + opened.id + '/configuration', 'PUT', { ...draft, rows })
+              setData(current => current && { ...current, widgets: current.widgets.map(w => w.id === updated.id
+                ? { ...updated, settings: draft.settings === undefined ? w.settings : updated.settings } : w) })
+              setPanel(null)
+            } finally { setBusy(false) }
+          }} />}</Modal>}
   </>
 }

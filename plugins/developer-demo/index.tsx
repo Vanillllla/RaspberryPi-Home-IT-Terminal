@@ -49,17 +49,14 @@ const Settings: NonNullable<Plugin['Settings']> = ({ instance, saveSettings }) =
   const [label, setLabel] = useState(() => labelOf(instance))
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
-  const [saved, setSaved] = useState(false)
 
   async function submit(event: FormEvent) {
     event.preventDefault()
     if (saving) return
     setSaving(true)
     setError('')
-    setSaved(false)
     try {
       await saveSettings({ ...instance.settings, label })
-      setSaved(true)
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Не удалось сохранить подпись')
     } finally {
@@ -70,12 +67,9 @@ const Settings: NonNullable<Plugin['Settings']> = ({ instance, saveSettings }) =
   return <form className="demo-form" onSubmit={submit}>
     <label>Подпись<input value={label} disabled={saving} required onChange={e => {
       setLabel(e.target.value)
-      setSaved(false)
       setError('')
     }} /></label>
-    <button className="primary" disabled={saving}>{saving ? 'Сохранение…' : 'Сохранить'}</button>
     {error && <p role="alert">{error}</p>}
-    {saved && <p role="status">Подпись сохранена</p>}
   </form>
 }
 
