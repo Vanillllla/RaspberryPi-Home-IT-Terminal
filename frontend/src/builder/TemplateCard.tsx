@@ -9,8 +9,12 @@ import { actionName, colors, itemLabel, type Action, type Color, type InputValue
 function TextResult({ value }: { value: string }) {
   if (value.startsWith('{')) {
     try {
-      const result = JSON.parse(value)
-      if (result && Object.keys(result).length === 2 && typeof result.color === 'string' && Object.hasOwn(colors, result.color)
+      const parsed = JSON.parse(value)
+      // Older servers could save the worker reply itself as the displayed text.
+      const wrapped = parsed && Object.keys(parsed).length === 2 && Object.hasOwn(parsed, 'value')
+        && Array.isArray(parsed.commands) && parsed.commands.every((command: unknown) => typeof command === 'string')
+      const result = wrapped ? parsed.value : parsed
+      if (result && typeof result === 'object' && Object.keys(result).length === 2 && typeof result.color === 'string' && Object.hasOwn(colors, result.color)
         && (typeof result.text === 'string' || typeof result.text === 'number')) {
         return <span className="widget-output widget-status" data-color={result.color}>{result.text}</span>
       }
