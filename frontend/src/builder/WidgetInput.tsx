@@ -1,5 +1,5 @@
 import { Fragment, useRef } from 'react'
-import type { Item } from './model'
+import { inputFormats, type Item } from './model'
 
 interface Props {
   item: Item
@@ -11,11 +11,21 @@ const validOctet = (value: string) => /^[0-9]{0,3}$/.test(value) && Number(value
 
 export function WidgetInput({ item, value, change }: Props) {
   const fields = useRef<HTMLDivElement>(null)
-  const ipv4 = item.inputMode === 'ipv4'
-  const placeholder = item.placeholder || (ipv4 ? 'Введите IP-адрес' : 'Введите текст')
+  const mode = item.inputMode ?? 'text'
+  const placeholder = item.placeholder || inputFormats[mode].placeholder
   const label = item.label && item.label !== 'Поле ввода' ? item.label : placeholder
-  if (!ipv4) return <input className="built-input" type="text" aria-label={label} placeholder={placeholder}
-    maxLength={2000} value={value} onChange={event => change(event.currentTarget.value)} />
+  if (mode === 'date' || mode === 'time') return <div className="built-calendar-input">
+    <input className="built-input" type={mode} aria-label={label} value={value}
+      max={mode === 'date' ? '9999-12-31' : undefined}
+      onChange={event => change(event.currentTarget.value)} />
+    {!value && <span className="input-hint">{placeholder}</span>}
+  </div>
+  if (mode !== 'ipv4') return <input className="built-input" type="text" aria-label={label} placeholder={placeholder}
+    inputMode={mode === 'number' ? 'decimal' : undefined} maxLength={2000} value={value}
+    onChange={event => {
+      const next = event.currentTarget.value
+      if (mode !== 'number' || /^[0-9]*\.?[0-9]*$/.test(next)) change(next)
+    }} />
 
   const parts = value.split('.')
   const octets = Array.from({ length: 4 }, (_, index) => parts[index] ?? '')
@@ -57,6 +67,6 @@ export function WidgetInput({ item, value, change }: Props) {
           }} />
       </Fragment>)}
     </div>
-    {!value && <span className="ipv4-placeholder" aria-hidden="true">{placeholder}</span>}
+    {!value && <span className="input-hint" aria-hidden="true">{placeholder}</span>}
   </div>
 }

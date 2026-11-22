@@ -10,6 +10,13 @@ export type Kind = keyof typeof kinds
 export type Color = keyof typeof colors
 export type ActionKind = keyof typeof actionKinds
 export type InputValue = string | number | boolean
+export const inputFormats = {
+  text: { label: 'Текст', placeholder: 'Введите текст' },
+  number: { label: 'Число', placeholder: 'Введите число' },
+  ipv4: { label: 'IPv4', placeholder: 'Введите IP-адрес' },
+  date: { label: 'Дата', placeholder: 'Выберите дату' },
+  time: { label: 'Время', placeholder: 'Выберите время' },
+}
 export type Inputs = Record<string, InputValue>
 export type Outputs = Record<string, string>
 
@@ -20,7 +27,7 @@ export interface Frame extends Cell { width: number; height: number }
 export const fontFamilies = { system: 'inherit', serif: 'Georgia, serif', monospace: 'monospace' }
 
 export interface Item {
-  inputMode?: 'text' | 'ipv4'
+  inputMode?: keyof typeof inputFormats
   placeholder?: string
   resetCommand?: string
   frame?: Frame | null

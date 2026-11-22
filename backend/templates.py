@@ -2,6 +2,7 @@
 import json
 import math
 import re
+from datetime import date
 from threading import Lock
 from typing import Annotated, Literal
 from urllib.parse import urlsplit
@@ -55,7 +56,7 @@ class Element(BaseModel):
     step: float = 1
     initial: float = 0
     color: Color = "green"
-    inputMode: Literal["text", "ipv4"] = "text"
+    inputMode: Literal["text", "number", "ipv4", "date", "time"] = "text"
     placeholder: str = Field(default="", max_length=200)
     resetCommand: str = Field(default="", max_length=100)
 
@@ -255,6 +256,20 @@ def valid_input(element, value):
         return False
     if element.inputMode == "text":
         return True
+    if element.inputMode == "number":
+        return re.fullmatch(r"[0-9]*\.?[0-9]*", value) is not None
+    if element.inputMode == "date":
+        if not value:
+            return True
+        if not re.fullmatch(r"[0-9]{4}-[0-9]{2}-[0-9]{2}", value):
+            return False
+        try:
+            date.fromisoformat(value)
+        except ValueError:
+            return False
+        return True
+    if element.inputMode == "time":
+        return not value or re.fullmatch(r"(?:[01][0-9]|2[0-3]):[0-5][0-9]", value) is not None
     # Accept partial octets while editing. A completed address has four nonempty octets.
     octets = value.split(".")
     return len(octets) <= 4 and all(not octet or (

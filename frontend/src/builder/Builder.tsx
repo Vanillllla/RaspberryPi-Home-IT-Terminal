@@ -5,7 +5,7 @@ import { useElementDrag } from './useElementDrag'
 import { ElementView } from './TemplateCard'
 import { TemplateImport } from './TemplateImport'
 import { ActionEditor } from './ActionEditor'
-import { actionKinds, actionLabel, colors, emptyDraft, kinds, newAction, newItem, randomKey, subdivisions, unusedCommand, type ActionKind, type Color,
+import { actionKinds, actionLabel, colors, emptyDraft, inputFormats, kinds, newAction, newItem, randomKey, subdivisions, unusedCommand, type ActionKind, type Color,
   type Action, type Draft, type Frame, type Item, type Kind, type Template } from './model'
 import './builder.css'
 
@@ -234,10 +234,10 @@ export function Builder({ cellSize, columns, maxRows, templates, busy, setBusy, 
         {item.kind === 'input' && <>
           <label>Формат поля<select value={item.inputMode ?? 'text'}
             onChange={e => updateItem({ inputMode: e.target.value as Item['inputMode'] })}>
-            <option value="text">Текст и числа</option><option value="ipv4">IPv4</option>
+            {Object.entries(inputFormats).map(([format, { label }]) => <option key={format} value={format}>{label}</option>)}
           </select></label>
           <label>Подсказка<input maxLength={200} value={item.placeholder ?? ''}
-            placeholder={item.inputMode === 'ipv4' ? 'Введите IP-адрес' : 'Введите текст'}
+            placeholder={inputFormats[item.inputMode ?? 'text'].placeholder}
             onChange={e => updateItem({ placeholder: e.target.value })} /></label>
           <label>Сброс по команде<input maxLength={100} value={item.resetCommand ?? ''}
             placeholder="Без сброса" onChange={e => updateItem({ resetCommand: e.target.value })} /></label>
