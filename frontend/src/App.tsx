@@ -36,6 +36,7 @@ export function App() {
   const [active, setActive] = useState(() => Number(sessionStorage.getItem('desktop')))
   const [panel, setPanel] = useState<Panel | null>(null)
   const [error, setError] = useState('')
+  const [cellSize, setCellSize] = useState(80)
   const [rows, setRows] = useState(1)
   const [busy, setBusy] = useState(false)
   const [theme, setTheme] = useState<Theme>(() => {
@@ -194,7 +195,7 @@ export function App() {
         </div>
         <DesktopPager desktops={data.desktops} active={desktop} select={select} blocked={panel !== null}
           render={(page, interactive) => (
-            <Grid columns={data.columns} maxRows={data.max_rows} reportRows={page.id === desktop.id ? setRows : undefined} interactive={interactive && !busy} widgets={data.widgets.filter(w => w.desktop_id === page.id)}
+            <Grid reportCellSize={page.id === desktop.id ? setCellSize : undefined} columns={data.columns} maxRows={data.max_rows} reportRows={page.id === desktop.id ? setRows : undefined} interactive={interactive && !busy} widgets={data.widgets.filter(w => w.desktop_id === page.id)}
               title={w => data.templates.find(t => t.id === w.plugin_id)?.name ?? data.plugins.find(p => p.id === w.plugin_id)?.name ?? w.plugin_id}
               openActions={id => setPanel({ mode: 'actions', id })}
               move={(id, slot, rows) => mutate(() => api('widgets/' + id + '/position', 'PUT', { slot, rows }))}
@@ -267,7 +268,7 @@ export function App() {
       </fieldset>
     </Modal>}
     {panel?.mode === 'builder' && data && <Modal title="Конструктор виджетов" pending={busy} close={() => setPanel(null)}>
-      <Builder templates={data.templates} busy={busy} setBusy={setBusy}
+      <Builder cellSize={cellSize} columns={data.columns} maxRows={data.max_rows} templates={data.templates} busy={busy} setBusy={setBusy}
         imported={template => setData(current => current && { ...current, templates: [...current.templates.filter(t => t.id !== template.id), template] })}
         saved={async template => {
         try {

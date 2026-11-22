@@ -34,6 +34,7 @@ export function ActionEditor({ action, items, update }: Props) {
     </>}
     {action.kind === 'python' && <>
       <label>Код Python<textarea rows={7} spellCheck={false} value={action.code} onChange={e => update({ code: e.target.value })} /></label>
+      <small>Чтобы вывести цветное число, верните словарь с ключами text и color. Для текстового получателя оставьте «Поле результата» пустым.</small>
       <details><summary>Значения в context</summary>{items.map(e =>
         <p key={e.id}>{e.label} · <code>{'context["values"]["' + e.id + '"]'}</code></p>)}</details>
     </>}

@@ -36,6 +36,19 @@ class TemplateTests(unittest.TestCase):
         initialize()
         self.assertEqual([t["name"] for t in state()["templates"]], ["Часы"])
 
+    def test_template_dimensions_apply_only_on_placement(self):
+        template = create_template(Definition(**self.draft))
+        add = AddWidget(plugin_id=template["id"], rows=3)
+        first = create_widget(1, add)
+        self.assertEqual((first["width"], first["height"]), (4, 2))
+        edit_template(template["id"], Definition(**{**template, "defaultWidth": 7, "defaultHeight": 3}))
+        second = create_widget(1, add)
+        self.assertEqual((second["slot"], second["width"], second["height"]), (4, 7, 3))
+        with self.assertRaises(HTTPException) as full:
+            create_widget(1, add)
+        self.assertEqual(full.exception.status_code, 409)
+        self.assertEqual(state()["widgets"], [first, second])
+
     def test_running_action_does_not_write_into_edited_template(self):
         template = create_template(Definition(**self.draft))
         widget = create_widget(1, AddWidget(plugin_id=template["id"]))

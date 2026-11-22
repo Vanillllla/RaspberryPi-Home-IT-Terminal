@@ -1,9 +1,9 @@
-import { useState } from 'react'
+import { useLayoutEffect, useRef, useState, type CSSProperties } from 'react'
 import { api } from '../api'
 import { ElementView } from './TemplateCard'
 import { TemplateImport } from './TemplateImport'
 import { ActionEditor } from './ActionEditor'
-import { actionKinds, colors, emptyDraft, kinds, newAction, newItem, randomKey, type ActionKind, type Color,
+import { actionKinds, cellStyle, colors, emptyDraft, kinds, newAction, newItem, randomKey, type ActionKind, type Color,
   type Draft, type Item, type Kind, type Template } from './model'
 import './builder.css'
 
@@ -17,6 +17,9 @@ function swap<T>(values: T[], a: number, b: number) {
 }
 
 interface Props {
+  cellSize: number
+  columns: number
+  maxRows: number
   templates: Template[]
   busy: boolean
   setBusy: (value: boolean) => void
@@ -24,7 +27,7 @@ interface Props {
   saved: (template: Template) => Promise<void>
 }
 
-export function Builder({ templates, busy, setBusy, imported, saved }: Props) {
+export function Builder({ cellSize, columns, maxRows, templates, busy, setBusy, imported, saved }: Props) {
   const [draft, setDraft] = useState<Draft>(emptyDraft)
   const [templateId, setTemplateId] = useState('')
   const [creationKey, setCreationKey] = useState(() => randomKey())
@@ -40,6 +43,21 @@ export function Builder({ templates, busy, setBusy, imported, saved }: Props) {
   const index = row.findIndex(e => e.id === elementId)
   const action = draft.actions.find(a => a.id === actionId)
   const source = draft.actions.find(a => a.targets.some(t => t.element === elementId))
+
+  const width = draft.defaultWidth ?? 4
+  const height = draft.defaultHeight ?? 2
+  const [guides, setGuides] = useState(true)
+  const stage = useRef<HTMLDivElement>(null)
+  const [space, setSpace] = useState(0)
+  useLayoutEffect(() => {
+    const node = stage.current!
+    const measure = () => setSpace(node.clientWidth)
+    measure()
+    const observer = new ResizeObserver(measure)
+    observer.observe(node)
+    return () => observer.disconnect()
+  }, [])
+  const scale = space ? Math.min(1, space / (Math.max(1, width) * cellSize)) : 1
 
   function change(delta: Partial<Draft>) {
     setError('')
@@ -75,6 +93,10 @@ export function Builder({ templates, busy, setBusy, imported, saved }: Props) {
     bind(next.id, [...draft.actions, next])
   }
   async function save() {
+    if (!Number.isInteger(width) || width < 1 || width > columns || !Number.isInteger(height) || height < 1 || height > maxRows) {
+      setError('Проверьте ширину и высоту шаблона в клетках')
+      return
+    }
     setError(''); setBusy(true)
     try {
       const result = await api<Template>(templateId ? 'templates/' + templateId : 'templates?creation_key=' + creationKey, templateId ? 'PUT' : 'POST', draft)
@@ -102,28 +124,44 @@ export function Builder({ templates, busy, setBusy, imported, saved }: Props) {
         }}><span aria-hidden="true">{symbols[k]}</span>{kinds[k]}</button>)}
       </section>
       <section className="builder-canvas"><h3>Предпросмотр</h3>
-        <div className="builder-sheet"><h4>{draft.name || 'Новый виджет'}</h4>
-          {draft.rows.map((r, i) => <div className="builder-row" key={i} data-selected={rowIndex === i}>
-            <div className="builder-row-tools">
-              <button aria-pressed={rowIndex === i} onClick={() => select(i, r[0]?.id)}>Строка {i + 1}</button>
-              <button aria-label={'Поднять строку ' + (i + 1)} disabled={!i} onClick={() => {
-                change({ rows: swap(draft.rows, i, i - 1) }); select(i - 1, r[0]?.id)
-              }}>↑</button>
-              <button aria-label={'Опустить строку ' + (i + 1)} disabled={i + 1 === draft.rows.length} onClick={() => {
-                change({ rows: swap(draft.rows, i, i + 1) }); select(i + 1, r[0]?.id)
-              }}>↓</button>
-              <button aria-label={'Удалить строку ' + (i + 1)} onClick={() => {
-                const rows = draft.rows.filter((_, n) => n !== i)
-                change({ rows: rows.length ? rows : [[]] }); select(0)
-              }}>×</button>
+        <div className="preview-size">
+          <label>Ширина в клетках<input type="number" min={1} max={columns} value={width || ''}
+            onChange={e => change({ defaultWidth: Number(e.target.value) })} /></label>
+          <label>Высота в клетках<input type="number" min={1} max={maxRows} value={height || ''}
+            onChange={e => change({ defaultHeight: Number(e.target.value) })} /></label>
+          <label><input type="checkbox" checked={guides} onChange={e => setGuides(e.target.checked)} /> Сетка</label>
+        </div>
+        <div className="preview-stage" ref={stage}>
+          <div className="builder-sheet" data-guides={guides} style={{ width: Math.max(1, Math.min(width, columns)) * cellSize,
+            height: Math.max(1, Math.min(height, maxRows)) * cellSize, zoom: scale, '--preview-cell': cellSize + 'px' } as CSSProperties}>
+            <div className="builder-sheet-frame">
+              <h4>{draft.name || 'Новый виджет'}</h4>
+              <div className="built-card preview-body">
+                {draft.rows.map((r, i) => <div key={i} className="built-row">
+                  {r.map(el => <div key={el.id} className="built-cell builder-preview-cell" style={cellStyle(el, Math.max(1, width))}>
+                    <div inert><ElementView item={el} /></div>
+                    <button aria-label={'Выбрать ' + kinds[el.kind] + ' · ' + el.label} aria-pressed={el.id === elementId}
+                      onClick={() => select(i, el.id)} />
+                  </div>)}
+                </div>)}
+              </div>
             </div>
-            <div className="built-row">{r.map(el => <div key={el.id} className="built-cell builder-preview-cell">
-              <div inert><ElementView item={el} /></div>
-              <button aria-label={'Выбрать ' + kinds[el.kind] + ' · ' + el.label} aria-pressed={el.id === elementId}
-                onClick={() => select(i, el.id)} />
-            </div>)}</div>
-            {!r.length && <small>Выберите элемент в палитре.</small>}
-          </div>)}
+          </div>
+        </div>
+        <div className="builder-row-tools">
+          <label>Строка <select value={rowIndex} onChange={e => {
+            const i = Number(e.target.value); select(i, draft.rows[i][0]?.id)
+          }}>{draft.rows.map((_, i) => <option key={i} value={i}>{i + 1}</option>)}</select></label>
+          <button aria-label="Поднять строку" disabled={!rowIndex} onClick={() => {
+            change({ rows: swap(draft.rows, rowIndex, rowIndex - 1) }); select(rowIndex - 1, elementId)
+          }}>↑</button>
+          <button aria-label="Опустить строку" disabled={rowIndex + 1 === draft.rows.length} onClick={() => {
+            change({ rows: swap(draft.rows, rowIndex, rowIndex + 1) }); select(rowIndex + 1, elementId)
+          }}>↓</button>
+          <button aria-label="Удалить строку" onClick={() => {
+            const rows = draft.rows.filter((_, n) => n !== rowIndex)
+            change({ rows: rows.length ? rows : [[]] }); select(0)
+          }}>×</button>
         </div>
         <button onClick={() => { change({ rows: [...draft.rows, []] }); select(draft.rows.length) }}>+ Строка</button>
       </section>
@@ -154,6 +192,10 @@ export function Builder({ templates, busy, setBusy, imported, saved }: Props) {
           </select></label>}
           <button onClick={() => { if (source) setAction(source.id); setTab('actions') }}>Настроить действия</button>
         </>}
+        <label>Ширина элемента<select aria-label="Ширина элемента" value={item.span ?? ''} onChange={e => updateItem({ span: Number(e.target.value) || null })}>
+          <option value="">Автоматически</option>
+          {Array.from({ length: columns }, (_, i) => <option key={i} value={i + 1}>{i + 1} кл.</option>)}
+        </select></label>
         <label>Разместить в строке<select value={rowIndex} onChange={e => {
           const dest = Number(e.target.value)
           change({ rows: draft.rows.map((r, i) => i === dest ? [...r, item] : i === rowIndex ? r.filter(x => x.id !== item.id) : r) })

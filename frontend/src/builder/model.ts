@@ -13,6 +13,7 @@ export type Outputs = Record<string, string>
 
 export interface Item {
   id: string; kind: Kind; label: string; command: string; checked: boolean; color: Color
+  span?: number | null
   minimum: number; maximum: number; step: number; initial: number
 }
 export interface Action {
@@ -20,7 +21,7 @@ export interface Action {
   host: string; port: number | null; url: string; path: string; code: string
   targets: { element: string; field: string }[]
 }
-export interface Draft { name: string; description?: string; rows: Item[][]; actions: Action[]; revision: number }
+export interface Draft { defaultWidth?: number; defaultHeight?: number; name: string; description?: string; rows: Item[][]; actions: Action[]; revision: number }
 export interface Template extends Draft { id: string }
 
 export function randomKey(bytes = 16) {
@@ -38,4 +39,11 @@ export function newAction(kind: ActionKind): Action {
 }
 export function emptyDraft(): Draft {
   return { name: '', rows: [[]], actions: [], revision: 0 }
+}
+
+// Remove the share of the row gap that falls outside this cell's span.
+export function cellStyle(item: Item, columns: number) {
+  if (!item.span) return undefined
+  const share = Math.min(1, item.span / columns)
+  return { flex: `0 0 calc(${100 * share}% - ${1 - share} * var(--row-gap))` }
 }

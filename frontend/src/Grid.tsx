@@ -6,6 +6,7 @@ interface Props {
   widgets: WidgetInstance[]
   columns: number
   maxRows: number
+  reportCellSize?: (size: number) => void
   reportRows?: (rows: number) => void
   interactive: boolean
   title: (widget: WidgetInstance) => string
@@ -34,7 +35,7 @@ const controlSelector = [
     .map(role => '[role~="' + role + '"]'),
 ].join(',')
 
-export function Grid({ widgets, columns, maxRows, reportRows, interactive, title, openActions, render, move }: Props) {
+export function Grid({ widgets, columns, maxRows, reportRows, reportCellSize, interactive, title, openActions, render, move }: Props) {
   const board = useRef<HTMLDivElement>(null)
   const viewport = useRef<HTMLDivElement>(null)
   const [area, setArea] = useState({ width: 0, height: 0 })
@@ -56,6 +57,8 @@ export function Grid({ widgets, columns, maxRows, reportRows, interactive, title
   const rows = Math.min(maxRows, Math.max(1, savedRows, Math.floor(area.height * columns / preferredWidth)))
   const boardWidth = Math.min(preferredWidth, area.height * columns / rows)
   useLayoutEffect(() => { reportRows?.(rows) }, [reportRows, rows])
+
+  useLayoutEffect(() => { if (boardWidth > 0) reportCellSize?.(boardWidth / columns) }, [reportCellSize, boardWidth, columns])
 
   const press = useRef<Press | null>(null)
   const suppressClick = useRef(false)

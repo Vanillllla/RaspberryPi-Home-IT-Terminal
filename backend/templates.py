@@ -11,6 +11,7 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, ConfigDict, Field
 
 from .actions import execute, get_field
+from .layout import COLUMNS, MAX_ROWS, DEFAULT_WIDTH, DEFAULT_HEIGHT
 from .storage import database
 
 router = APIRouter(prefix="/api")
@@ -23,6 +24,7 @@ class Element(BaseModel):
     id: Id
     kind: Literal["text", "button", "switch", "slider", "indicator"]
     label: str = Field(max_length=2000)
+    span: int | None = Field(default=None, strict=True, ge=1, le=COLUMNS)
     command: str = Field(default="", max_length=100)
     checked: bool = False
     minimum: float = 0
@@ -53,6 +55,8 @@ class Action(BaseModel):
 
 
 class Definition(BaseModel):
+    defaultWidth: int = Field(default=DEFAULT_WIDTH, strict=True, ge=1, le=COLUMNS)
+    defaultHeight: int = Field(default=DEFAULT_HEIGHT, strict=True, ge=1, le=MAX_ROWS)
     description: str = Field(default="", max_length=2000)
     name: str = Field(min_length=1, max_length=100)
     rows: list[list[Element]] = Field(min_length=1, max_length=64)
@@ -130,13 +134,15 @@ def save(body, template_id=None, creation_key=None):
         else:
             revision = body.revision
             body.revision += 1
-            changed = conn.execute("""UPDATE templates SET definition=? WHERE id=?
-                AND json_extract(definition,'$.revision')=?""", (body.model_dump_json(), template_id, revision))
-            if not changed.rowcount:
-                current = conn.execute("SELECT definition FROM templates WHERE id=?", (template_id,)).fetchone()
-                if current and Definition.model_validate_json(current["definition"]) == body:
+            row = conn.execute("SELECT definition FROM templates WHERE id=?", (template_id,)).fetchone()
+            previous = Definition.model_validate_json(row["definition"]) if row else None
+            if previous is None or previous.revision != revision:
+                if previous == body:
                     return {"id": template_id, **body.model_dump()}
                 raise HTTPException(409, "Версия шаблона изменилась. Откройте его заново.")
+            conn.execute("UPDATE templates SET definition=? WHERE id=?", (body.model_dump_json(), template_id))
+            if previous.rows == body.rows and previous.actions == body.actions:
+                return {"id": template_id, **body.model_dump()}
             # Revalidate saved controls against the edited ranges. Outputs belong to the old bindings.
             for widget in conn.execute("SELECT id,settings FROM widgets WHERE plugin_id=?", (template_id,)).fetchall():
                 settings = json.loads(widget["settings"])

@@ -22,13 +22,20 @@ dialog:has(.builder) { width: min(1380px, 96vw); max-width: 96vw; height: 92dvh;
 .builder-palette, .builder-inspector, .builder-canvas { display: grid; gap: .65rem; }
 .builder-palette button { display: flex; align-items: center; gap: .5rem; text-align: left; padding: .4rem .5rem; }
 .builder-palette button span { flex: none; width: 1.4rem; text-align: center; color: var(--muted); }
-.builder-sheet { background: var(--canvas); border: 1px solid var(--line); border-radius: var(--radius); padding: .75rem; display: grid; gap: .7rem; }
-.builder-row { min-width: 0; padding: .5rem; border-radius: 8px; border: 1px dashed var(--line); }
-.builder-row[data-selected=true] { border-color: var(--accent); }
-.builder-row-tools { margin-bottom: .5rem; }
+.preview-size { display: flex; align-items: end; flex-wrap: wrap; gap: .6rem; }
+.preview-size label { font-size: .9rem; }
+.preview-size input[type=number] { display: block; max-width: 6rem; }
+.preview-stage { flex: none; max-height: 65dvh; overflow: auto; }
+.builder-sheet { margin-inline: auto; border: 3px solid transparent; }
+.builder-sheet-frame { display: flex; flex-direction: column; height: 100%; border: 1px solid var(--line); border-radius: var(--radius); padding: 1px clamp(8px, 1vw, 16px) .4rem; background: var(--surface); overflow: clip; }
+.builder-sheet[data-guides=true] .builder-sheet-frame { background-image: linear-gradient(to right, var(--guide) 1px, transparent 1px), linear-gradient(to bottom, var(--guide) 1px, transparent 1px); --guide: color-mix(in srgb, var(--line) 38%, transparent); background-size: var(--preview-cell) var(--preview-cell); }
+.builder-sheet h4 { flex: none; line-height: 36px; text-overflow: ellipsis; overflow: hidden; white-space: nowrap; text-align: center; }
+.preview-body { min-height: 0; overflow: auto; align-content: start; }
+.builder-row-tools { align-items: center; }
+.builder-row-tools label { display: flex; align-items: center; gap: .4rem; }
 .builder-row-tools button { min-height: 32px; padding: .18rem .5rem; }
 .builder button[aria-pressed=true]:not(.builder-preview-cell button) { background: var(--accent); color: var(--on-accent); }
-.builder-preview-cell { position: relative; border: 1px solid var(--line); border-radius: 6px; padding: .35rem; }
+.builder-preview-cell { position: relative; }
 .builder-preview-cell > button { position: absolute; inset: 0; width: 100%; min-height: 0; background: transparent; border: 0; }
 .builder-preview-cell > button[aria-pressed=true] { box-shadow: inset 0 0 0 2px var(--accent); }
 .builder-inspector fieldset { min-width: 0; margin: 0; border: 1px solid var(--line); border-radius: 8px; }
@@ -37,7 +44,10 @@ dialog:has(.builder) { width: min(1380px, 96vw); max-width: 96vw; height: 92dvh;
 .builder code, .action-message { overflow-wrap: anywhere; white-space: pre-wrap; }
 .builder small { color: var(--muted); }
 .built-card { display: grid; gap: .45rem; }
-.built-row { display: flex; gap: .45rem; flex-wrap: wrap; align-items: center; }
+.widget-content:has(> .built-card) { width: 100%; }
+.widget-content[data-horizontal=center] > .built-card { text-align: center; }
+.widget-content[data-horizontal=right] > .built-card { text-align: right; }
+.built-row { --row-gap: .45rem; display: flex; gap: var(--row-gap); flex-wrap: wrap; align-items: center; }
 .built-cell { min-width: 0; flex: 1 1 5.5rem; overflow-wrap: anywhere; }
 .built-cell button { max-width: 100%; }
 .built-indicator { display: inline-flex; gap: .35rem; align-items: center; min-height: 32px; }

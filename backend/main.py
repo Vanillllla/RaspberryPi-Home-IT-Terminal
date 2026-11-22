@@ -108,19 +108,23 @@ def delete_desktop(desktop_id: int):
 @app.post("/api/desktops/{desktop_id}/widgets", status_code=201)
 def create_widget(desktop_id: int, body: AddWidget):
     with database(write=True) as conn:
-        if body.plugin_id not in plugins and not conn.execute("SELECT 1 FROM templates WHERE id=?", (body.plugin_id,)).fetchone():
+        template = conn.execute("SELECT definition FROM templates WHERE id=?", (body.plugin_id,)).fetchone()
+        if body.plugin_id not in plugins and template is None:
             raise HTTPException(404, "Плагин или шаблон недоступен")
         if not conn.execute("SELECT id FROM desktops WHERE id=?", (desktop_id,)).fetchone():
             raise HTTPException(404, "Рабочий стол отсутствует")
+        definition = json.loads(template["definition"]) if template else {}
+        width = definition.get("defaultWidth", DEFAULT_WIDTH)
+        height = definition.get("defaultHeight", DEFAULT_HEIGHT)
         layout = Layout(conn, desktop_id, rows=body.rows)
         slot = next((s for s in range(layout.rows * COLUMNS)
-                     if not layout.conflict(s, DEFAULT_WIDTH, DEFAULT_HEIGHT)), None)
+                     if not layout.conflict(s, width, height)), None)
         if slot is None:
             raise HTTPException(409, "Нет свободного места для виджета")
         widget_id = conn.execute("UPDATE widget_sequence SET last_id=last_id+1 RETURNING last_id").fetchone()[0]
         row = conn.execute(
-            "INSERT INTO widgets(id, desktop_id, plugin_id, slot) VALUES (?, ?, ?, ?) RETURNING *",
-            (widget_id, desktop_id, body.plugin_id, slot),
+            "INSERT INTO widgets(id, desktop_id, plugin_id, slot, width, height) VALUES (?, ?, ?, ?, ?, ?) RETURNING *",
+            (widget_id, desktop_id, body.plugin_id, slot, width, height),
         ).fetchone()
         return instance(row)
 

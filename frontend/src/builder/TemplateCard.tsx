@@ -1,7 +1,20 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { api } from '../api'
 import { WidgetSlider, WidgetSwitch, type WidgetInstance } from '../plugin'
-import { colors, type Action, type Color, type Item, type Inputs, type Outputs, type Template } from './model'
+import { cellStyle, colors, type Action, type Color, type Item, type Inputs, type Outputs, type Template } from './model'
+
+function TextResult({ value }: { value: string }) {
+  if (value.startsWith('{')) {
+    try {
+      const result = JSON.parse(value)
+      if (result && Object.keys(result).length === 2 && typeof result.color === 'string' && Object.hasOwn(colors, result.color)
+        && (typeof result.text === 'string' || typeof result.text === 'number')) {
+        return <span className="widget-output widget-status" data-color={result.color}>{result.text}</span>
+      }
+    } catch { /* Plain text may also start with a brace. */ }
+  }
+  return <span className="widget-output">{value}</span>
+}
 
 interface ElementProps {
   item: Item
@@ -29,7 +42,7 @@ export function ElementView({ item, inputs = {}, outputs = {}, change }: Element
     case 'text':
       return outputs[item.id] === undefined
         ? <strong>{item.label}</strong>
-        : <span className="widget-output">{outputs[item.id]}</span>
+        : <TextResult value={outputs[item.id]} />
   }
 }
 interface RunResult { outputs?: Outputs; diagnostic?: string; skipped?: boolean }
@@ -112,7 +125,7 @@ export function TemplateCard({ template, instance, active, patch }: Props) {
 
   return <div className="built-card">
     {template.rows.map((row, index) => <div className="built-row" key={index}>
-      {row.map(item => <div className="built-cell" key={item.id}>
+      {row.map(item => <div className="built-cell" key={item.id} style={cellStyle(item, instance.width)}>
         <ElementView item={item} inputs={inputs} outputs={outputs} change={change} />
       </div>)}
     </div>)}
