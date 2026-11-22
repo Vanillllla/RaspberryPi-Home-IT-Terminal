@@ -12,10 +12,11 @@ interface Props {
   select: (id: number) => void
   create: () => void
   rename: () => void
+  reorder: () => void
   remove: () => void
 }
 
-export function DesktopNavigation({ desktops, active, open, busy, error, setOpen, select, create, rename, remove }: Props) {
+export function DesktopNavigation({ desktops, active, open, busy, error, setOpen, select, create, rename, reorder, remove }: Props) {
   const { t } = useTranslation()
   const tab = useRef<HTMLButtonElement>(null)
   const current = useRef<HTMLButtonElement>(null)
@@ -79,6 +80,7 @@ export function DesktopNavigation({ desktops, active, open, busy, error, setOpen
       <div className="desktop-actions">
         <button disabled={busy} onClick={create}>{t('Создать рабочий стол')}</button>
         <button disabled={busy} onClick={rename} aria-haspopup="dialog">{t('Переименовать')}</button>
+        <button disabled={busy || desktops.length < 2} onClick={reorder} aria-haspopup="dialog">{t('Изменить порядок')}</button>
         <button disabled={busy || desktops.length < 2} onClick={remove} aria-haspopup="dialog"
           title={desktops.length === 1 ? t('Последний рабочий стол удалить нельзя') : undefined}>{t('Удалить рабочий стол')}</button>
       </div>

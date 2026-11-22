@@ -28,7 +28,7 @@ type Theme = 'light' | 'dark'
 const themeKey = 'pi-terminal-theme'
 
 type Panel =
-  | { mode: 'desktops' | 'add' | 'panel-settings' | 'builder' }
+  | { mode: 'desktops' | 'reorder-desktops' | 'add' | 'panel-settings' | 'builder' }
   | { mode: 'rename-desktop'; selected: number; name: string }
   | { mode: 'delete-desktop'; selected: number | null }
   | { mode: 'actions' | 'Settings' | 'Details'; id: number }
@@ -138,7 +138,8 @@ export function App() {
     return runMutation(async () => {
       const next = await api<State>('desktops/' + id, 'DELETE')
       const current = next.desktops.find(d => d.id === desktop?.id)
-      const neighbor = next.desktops.find(d => d.id > id) ?? next.desktops[next.desktops.length - 1]
+      const index = data?.desktops.findIndex(d => d.id === id) ?? 0
+      const neighbor = next.desktops[index] ?? next.desktops[next.desktops.length - 1]
       select((current ?? neighbor).id)
       setData(next)
       setPanel(null)
@@ -181,7 +182,7 @@ export function App() {
   const opened = panel && 'id' in panel && data?.widgets.find(w => w.id === panel.id)
   return <>
     <main>
-      {error && !drawerOpen && panel?.mode !== 'rename-desktop' && panel?.mode !== 'add' && panel?.mode !== 'delete-desktop' && <p role="alert">{error} <button onClick={() => void mutate(async () => {})}>{t('Обновить')}</button></p>}
+      {error && !drawerOpen && panel?.mode !== 'reorder-desktops' && panel?.mode !== 'rename-desktop' && panel?.mode !== 'add' && panel?.mode !== 'delete-desktop' && <p role="alert">{error} <button onClick={() => void mutate(async () => {})}>{t('Обновить')}</button></p>}
       {desktop && data ? <>
         <div className="toolbar">
           <DesktopNavigation desktops={data.desktops} active={desktop} open={drawerOpen} busy={busy}
@@ -192,6 +193,7 @@ export function App() {
               select(next.id)
             })}
             rename={() => { setError(''); setPanel({ mode: 'rename-desktop', selected: desktop.id, name: desktopName(desktop, t) }) }}
+            reorder={() => { setError(''); select(desktop.id); setPanel({ mode: 'reorder-desktops' }) }}
             remove={() => { setError(''); setPanel({ mode: 'delete-desktop', selected: null }) }} />
           <button className="nav-action" inert={drawerOpen} aria-label={t('Настройки панели')} title={t('Настройки панели')} aria-haspopup="dialog"
             onClick={() => setPanel({ mode: 'panel-settings' })}>
@@ -216,6 +218,25 @@ export function App() {
           )} />
       </> : !error && <p>{t('Загрузка рабочего стола…')}</p>}
     </main>
+    {panel?.mode === 'reorder-desktops' && data && <Modal title={t('Порядок рабочих столов')} pending={busy}
+      close={() => setDrawerOpen(true)}>
+      <ol className="desktop-order">
+        {data.desktops.map((d, index) => <li key={d.id}>
+          <span>{desktopName(d, t)}</span>
+          {([-1, 1] as const).map(offset => {
+            const neighbor = data.desktops[index + offset]
+            const label = t(offset < 0 ? 'Переместить «{name}» выше' : 'Переместить «{name}» ниже', { name: desktopName(d, t) })
+            return <button key={offset} aria-label={label} title={label} aria-disabled={busy || !neighbor}
+              onClick={() => {
+                if (busy || !neighbor) return
+                const [first, second] = offset < 0 ? [neighbor.id, d.id] : [d.id, neighbor.id]
+                void runMutation(async () => setData(await api<State>('desktops/swap', 'POST', { first, second })))
+              }}>{offset < 0 ? '↑' : '↓'}</button>
+          })}
+        </li>)}
+      </ol>
+      {error && <p role="alert">{error}</p>}
+    </Modal>}
     {panel?.mode === 'rename-desktop' && data && <Modal title={t('Переименовать рабочий стол')} pending={busy}
       close={() => setDrawerOpen(true)}>
       <form className="rename-desktop" onSubmit={e => {

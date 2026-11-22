@@ -49,6 +49,11 @@ class DesktopName(BaseModel):
     name: str
 
 
+class DesktopSwap(BaseModel):
+    first: int = Field(strict=True)
+    second: int = Field(strict=True)
+
+
 class ViewportLayout(BaseModel):
     rows: int | None = Field(default=None, strict=True, ge=1, le=MAX_ROWS)
 
@@ -92,7 +97,7 @@ class Settings(BaseModel):
 
 def read_state(conn):
     widgets = [instance(row) for row in conn.execute("SELECT * FROM widgets ORDER BY id")]
-    desktops = [dict(row) for row in conn.execute("SELECT * FROM desktops ORDER BY id")]
+    desktops = [dict(row) for row in conn.execute("SELECT id, name, default_name FROM desktops ORDER BY sort_order")]
     for desktop in desktops:
         desktop["default_name"] = bool(desktop["default_name"])
         desktop["rows"] = row_count(w for w in widgets if w["desktop_id"] == desktop["id"])
@@ -127,6 +132,20 @@ def rename_desktop(desktop_id: int, body: DesktopName):
         if not conn.execute("UPDATE desktops SET name=?, default_name=0 WHERE id=?", (name, desktop_id)).rowcount:
             raise HTTPException(404, tr("Рабочий стол отсутствует", "Desktop not found"))
         return {"id": desktop_id, "name": name, "default_name": False}
+
+
+@app.post("/api/desktops/swap")
+def swap_desktops(body: DesktopSwap):
+    with database(write=True) as conn:
+        rows = conn.execute("SELECT id, sort_order FROM desktops ORDER BY sort_order").fetchall()
+        for first, second in zip(rows, rows[1:]):
+            if first["id"] == body.first and second["id"] == body.second:
+                conn.executemany("UPDATE desktops SET sort_order=? WHERE id=?", (
+                    (second["sort_order"], body.first), (first["sort_order"], body.second),
+                ))
+                return read_state(conn)
+        raise HTTPException(409, tr("Список столов изменился. Проверьте порядок и повторите перемещение.",
+                                    "The desktop list changed. Check the order and try again."))
 
 
 @app.delete("/api/desktops/{desktop_id}")

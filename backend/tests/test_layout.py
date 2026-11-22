@@ -8,8 +8,8 @@ from fastapi import HTTPException
 
 from backend import storage
 from backend.main import (
-    AddWidget, ContentAlignment, DesktopName, MoveWidget, WidgetSize, align_content,
-    create_desktop, create_widget, delete_desktop, move_widget, rename_desktop, resize_widget, state,
+    AddWidget, ContentAlignment, DesktopName, DesktopSwap, MoveWidget, WidgetSize, align_content,
+    create_desktop, create_widget, delete_desktop, move_widget, rename_desktop, resize_widget, state, swap_desktops,
 )
 
 
@@ -64,6 +64,24 @@ class LayoutTest(unittest.TestCase):
         rename_desktop(1, DesktopName(name="  Серверная  "))
         expected["desktops"][0]["name"] = "Серверная"
         self.assertEqual(state(), expected)
+
+    def test_desktop_order_survives_restart_and_changes_to_the_list(self):
+        second = create_desktop()["id"]
+        third = create_desktop()["id"]
+        before = state()
+        swap = DesktopSwap(first=1, second=second)
+        reordered = swap_desktops(swap)
+        self.assertEqual(reordered["desktops"], [before["desktops"][i] for i in (1, 0, 2)])
+        self.assertEqual(reordered["widgets"], before["widgets"])
+        storage.initialize()
+        for stale in (swap, DesktopSwap(first=second, second=third)):
+            with self.assertRaises(HTTPException) as error:
+                swap_desktops(stale)
+            self.assertEqual(error.exception.status_code, 409)
+        self.assertEqual(state(), reordered)
+        delete_desktop(third)
+        last = create_desktop()["id"]
+        self.assertEqual([d["id"] for d in state()["desktops"]], [second, 1, last])
 
     def test_alignment_preserves_other_appearance_keys_and_instances(self):
         expected = state()
