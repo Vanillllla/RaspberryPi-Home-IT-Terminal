@@ -20,6 +20,8 @@ npm --version
 
 Последняя проверка Node.js должна показать `linux v…`. Путь к npm должен вести к установке внутри Debian, например `/usr/bin/npm` или `/home/…/.nvm/…/bin/npm`. Путь под `/mnt/c/`, логи npm в `C:\Users\…` или вывод `win32` означают, что используется Windows-установка. Если Python или venv отсутствует, выполните `sudo apt update && sudo apt install -y python3 python3-venv`.
 
+Если Bash пишет `node: command not found`, а `command -v npm` показывает `/mnt/c/Program Files/nodejs/npm`, установите Node.js в Debian командами ниже. Ошибка `ENOTEMPTY` для `frontend/node_modules/.bin` с путём `\\wsl.localhost\Debian\…` тоже указывает на Windows npm. Сначала переключитесь на Linux-версию. Linux npm сам очистит старую папку зависимостей при выполнении `npm ci`.
+
 Если Linux-версии Node.js и npm нет или версия Node.js слишком старая, установите Node.js 22 через nvm прямо в Debian. [Инструкция nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
 
 ```bash
@@ -47,17 +49,26 @@ python3 -m venv .venv &&
 ```
 
 Дождитесь строки `Application startup complete` и оставьте этот терминал открытым.
+Если Uvicorn уже слушает `127.0.0.1:8000`, переходите к настройке frontend во втором терминале.
 
 ### 3. Запустите frontend во втором терминале
 
 Команды ниже переходят в корень и явно задают каталог frontend для обеих команд npm. Повторяйте `npm ci` после изменения зависимостей.
 
 ```bash
-cd ~/Projects/RaspberryDashboard &&
-test -f frontend/package.json &&
-test -f frontend/package-lock.json &&
-npm --prefix ./frontend ci &&
-npm --prefix ./frontend run dev
+(
+  npm_path=$(command -v npm)
+  if [[ "$(node -p process.platform 2>/dev/null)" != linux || "$npm_path" != /* || "$npm_path" == /mnt/* ]]; then
+    printf '%s\n' 'Нужны Node.js и npm внутри Debian. Выполните шаг 1 в этом терминале.' >&2
+    exit 1
+  fi
+
+  cd ~/Projects/RaspberryDashboard &&
+  test -f frontend/package.json &&
+  test -f frontend/package-lock.json &&
+  npm --prefix ./frontend ci &&
+  npm --prefix ./frontend run dev
+)
 ```
 
 Откройте [Pi Terminal в браузере Windows](http://localhost:5173). Запуск рассчитан на стандартный проброс localhost в WSL2. Vite передаёт запросы `/api` на FastAPI. Для диагностики откройте [состояние приложения через Vite](http://localhost:5173/api/state). Остановить каждый процесс можно сочетанием Ctrl+C.
