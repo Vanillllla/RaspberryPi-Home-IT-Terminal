@@ -1,0 +1,4 @@
+{
+  "connect": {"argv": ["/usr/bin/systemctl", "--no-ask-password", "start", "wg-quick@wg0.service"]},
+  "disconnect": {"argv": ["/usr/bin/systemctl", "--no-ask-password", "stop", "wg-quick@wg0.service"]}
+}

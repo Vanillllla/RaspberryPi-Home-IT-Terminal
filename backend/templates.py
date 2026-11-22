@@ -13,6 +13,7 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, ConfigDict, Field
 
 from .i18n import tr
+from .integrations import Binding, invoke
 from .actions import execute, get_field
 from .layout import COLUMNS, MAX_ROWS, DEFAULT_WIDTH, DEFAULT_HEIGHT
 from .storage import database
@@ -44,8 +45,10 @@ class Frame(BaseModel):
 class Element(BaseModel):
     model_config = ConfigDict(allow_inf_nan=False)
     id: Id
-    kind: Literal["text", "button", "switch", "slider", "indicator", "input", "shortcut"]
+    kind: Literal["text", "button", "switch", "slider", "indicator", "input", "shortcut", "integration"]
     label: str = Field(max_length=2000)
+    integration: str = Field(default="", max_length=64)
+    bindings: list[Binding] = Field(default_factory=list, max_length=32)
     href: str = Field(default="", max_length=4096)
     png: str = Field(default="", max_length=350000)
     siteIcon: bool = False
@@ -76,7 +79,7 @@ class Action(BaseModel):
     id: Id
     name: str = Field(min_length=1, max_length=100)
     defaultName: bool = False
-    kind: Literal["time", "reach", "http", "python"]
+    kind: Literal["time", "reach", "http", "python", "activate"]
     trigger: Literal["command", "timer"]
     command: str = Field(default="", max_length=100)
     interval: int = Field(default=1, ge=1, le=86400)
@@ -123,6 +126,13 @@ class Definition(BaseModel):
                 raise ValueError(tr("Рамки элементов пересекаются", "Element frames overlap"))
         occupied = set()
         for e in elements.values():
+            if e.kind == "integration":
+                for binding in e.bindings:
+                    if binding.trigger and not any(a.id == binding.trigger and a.kind == "activate" for a in self.actions):
+                        raise ValueError(tr("Выберите действие активации интеграции", "Choose an integration activation action"))
+                    if any(ref not in elements or elements[ref].kind not in ("input", "switch", "slider")
+                           for ref in binding.references()):
+                        raise ValueError(tr("Проверьте ссылки на элементы ввода", "Check input element references"))
             if e.kind == "shortcut":
                 url = urlsplit(e.href)
                 if url.scheme not in ("http", "https") or not url.hostname:
@@ -182,6 +192,7 @@ def element_label(element):
         "switch": ("Переключатель", "Switch"),
         "slider": ("Слайдер", "Slider"),
         "indicator": ("Индикатор состояния", "Status indicator"),
+        "integration": ("Интеграция", "Integration"),
         "shortcut": ("Ярлык", "Shortcut"),
         "input": ("Поле ввода", "Input field"),
     }[element.kind]
@@ -368,7 +379,15 @@ def run_action(widget_id: int, action_id: str, body: Invocation):
                 return {"skipped": True}
             running.add(key)
     try:
-        result, diagnostic, commands = execute(action, context)
+        if action.kind == "activate":
+            for element in definition.elements().values():
+                if element.kind == "integration":
+                    for index, binding in enumerate(element.bindings):
+                        if binding.trigger == action.id:
+                            invoke(element.integration, index, [values[k] for k in binding.references()])
+            result, diagnostic, commands = "", "", []
+        else:
+            result, diagnostic, commands = execute(action, context)
         outputs = {}
         elements = definition.elements()
         for t in action.targets:

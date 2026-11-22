@@ -52,6 +52,7 @@ export function ElementView({ item, inputs = {}, outputs = {}, change }: Element
   const label = itemLabel(item, t)
   const value = inputs[item.id]
   switch (item.kind) {
+    case 'integration': return <span>{label}</span>
     case 'shortcut':
       return <Shortcut item={item} label={label} />
     case 'input':
@@ -113,7 +114,7 @@ export function TemplateCard({ template, instance, active, patch, resetTimers, i
 
   const dispatch = useCallback((command: string, fromScript = false) => {
     const listeners = template.actions.filter(a => a.trigger === 'command' && a.command === command
-      && (a.targets.length > 0 || a.kind === 'python'))
+      && (a.targets.length > 0 || a.kind === 'python' || a.kind === 'activate'))
     const resets = template.rows.flat().filter(e => e.kind === 'input' && e.resetCommand === command)
     if (fromScript && !listeners.length && !resets.length) throw new Error(t('Нет получателей команды «{command}»', { command }))
     for (const field of resets) {
@@ -176,7 +177,7 @@ export function TemplateCard({ template, instance, active, patch, resetTimers, i
       timers = []
       if (document.hidden) return
       for (const action of template.actions) {
-        if (!action.targets.length || action.trigger !== 'timer') continue
+        if ((!action.targets.length && action.kind !== 'activate') || action.trigger !== 'timer') continue
         void run(action)
         timers.push(window.setInterval(() => void run(action), action.interval * 1000))
       }

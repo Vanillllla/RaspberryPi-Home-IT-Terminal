@@ -4,6 +4,7 @@ import { api } from '../api'
 import { canPlace, editableDraft, frameStyle, ElementLayout } from './ElementLayout'
 import { useElementDrag } from './useElementDrag'
 import { ElementView } from './TemplateCard'
+import { IntegrationPalette, IntegrationBindings, type Catalog, type Integration } from './Integrations'
 import { TemplateImport } from './TemplateImport'
 import { ActionHelp } from './ActionHelp'
 import { ActionEditor } from './ActionEditor'
@@ -11,7 +12,7 @@ import { actionKinds, actionLabel, actionName, itemLabel, colors, contextExpress
   type Action, type Draft, type Frame, type Item, type Kind, type Template } from './model'
 import './builder.css'
 
-const symbols: Record<Kind, string> = { text: 'T', button: '▣', switch: '◐', slider: '↔', indicator: '●', input: '▏', shortcut: '↗' }
+const symbols: Record<Kind, string> = { text: 'T', button: '▣', switch: '◐', slider: '↔', indicator: '●', input: '▏', shortcut: '↗', integration: '⚙' }
 
 async function copyExpression(expression: string, origin: HTMLElement) {
   if (navigator.clipboard?.writeText) {
@@ -62,6 +63,7 @@ export function Builder({ cellSize, columns, maxRows, templates, busy, setBusy, 
   const [helpOpen, setHelpOpen] = useState(false)
   const [kind, setKind] = useState<ActionKind>('time')
   const [error, setError] = useState('')
+  const [catalog, setCatalog] = useState<Catalog>({ elements: [], operations: {} })
   const selectedTemplate = templates.find(template => template.id === templateId)
   const items = draft.rows.flat()
   const item = items.find(e => e.id === elementId)
@@ -112,12 +114,13 @@ export function Builder({ cellSize, columns, maxRows, templates, busy, setBusy, 
     return <button key={k} {...drag.handlers('add', () => fromPalette(k), () => add(k))}><span aria-hidden="true">{symbols[k]}</span>{t(kinds[k])}</button>
   }
   function fromPalette(kind: Kind) {
-    const sizes: Record<Kind, [number, number]> = { text: [6, 3], button: [6, 3], indicator: [2, 2], switch: [9, 3], slider: [10, 4], input: [14, 3], shortcut: [8, 3] }
+    const sizes: Record<Kind, [number, number]> = { text: [6, 3], button: [6, 3], indicator: [2, 2], switch: [9, 3], slider: [10, 4], input: [14, 3], shortcut: [8, 3], integration: [8, 3] }
     const [w, h] = sizes[kind]
     return { ...newItem(kind, t), frame: { x: 0, y: 0, width: Math.min(w, gridWidth), height: Math.min(h, gridHeight) } }
   }
-  function add(kind: Kind) {
-    const element = fromPalette(kind)
+  function add(kind: Kind, integration?: Integration) {
+    const base = fromPalette(kind)
+    const element = integration ? { ...base, integration: integration.id, label: integration.name, defaultLabel: false } : base
     for (let y = 0; y <= gridHeight - element.frame.height; y++) {
       for (let x = 0; x <= gridWidth - element.frame.width; x++) {
         const frame = { ...element.frame, x, y }
@@ -193,6 +196,19 @@ export function Builder({ cellSize, columns, maxRows, templates, busy, setBusy, 
       setError(t('Размер шрифта должен быть целым числом от 1 до 144 пт'))
       return
     }
+    for (const el of items.filter(el => el.kind === 'integration')) {
+      const integration = catalog.elements.find(entry => entry.id === el.integration)
+      for (const [index, binding] of (el.bindings ?? []).entries()) {
+        const task = integration?.tasks[index]
+        if (!task || !binding.trigger) continue
+        const count = binding.context.trim() ? binding.context.split(',').length : 0
+        const expected = catalog.operations[task.operation]
+        if (expected !== undefined && count !== expected) {
+          setError(t('Для действия «{name}» требуется аргументов: {count}', { name: task.name, count: expected }))
+          return
+        }
+      }
+    }
     setError(''); setBusy(true)
     try {
       const result = await api<Template>(templateId ? 'templates/' + templateId : 'templates?creation_key=' + creationKey, templateId ? 'PUT' : 'POST', draft)
@@ -232,9 +248,10 @@ export function Builder({ cellSize, columns, maxRows, templates, busy, setBusy, 
     <div className="builder-layout">
       <section className="builder-palette"><h3>{t('Элементы')}</h3>
         <h4>{t('Простые элементы')}</h4>
-        {(Object.keys(kinds) as Kind[]).filter(k => k !== 'shortcut').map(paletteButton)}
+        {(Object.keys(kinds) as Kind[]).filter(k => k !== 'shortcut' && k !== 'integration').map(paletteButton)}
         <h4>{t('Элементы интеграций')}</h4>
         {paletteButton('shortcut')}
+        <IntegrationPalette catalog={catalog} setCatalog={setCatalog} add={el => add('integration', el)} />
       </section>
       <section className="builder-canvas"><h3>{t('Предпросмотр')}</h3>
         <div className="preview-size">
@@ -281,6 +298,7 @@ export function Builder({ cellSize, columns, maxRows, templates, busy, setBusy, 
       {tab === 'element' && (item ? <>
         <h4>{t(kinds[item.kind])}</h4>
         <label>{t('Подпись')}<input value={itemLabel(item, t)} onChange={e => updateItem({ label: e.target.value, defaultLabel: false })} /></label>
+        {item.kind === 'integration' && <IntegrationBindings item={item} items={items} actions={draft.actions} catalog={catalog} update={updateItem} />}
         {item.kind === 'shortcut' && <>
           <label>{t('Адрес ссылки')}<input type="url" placeholder="https://example.com" value={item.href ?? ''}
             onChange={e => updateItem({ href: e.target.value })} /></label>

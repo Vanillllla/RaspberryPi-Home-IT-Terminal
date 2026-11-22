@@ -2,10 +2,10 @@ import type { Translate } from '../i18n'
 
 export const kinds = {
   text: 'Текст', button: 'Кнопка', switch: 'Переключатель', slider: 'Слайдер', indicator: 'Индикатор состояния',
-  input: 'Поле ввода', shortcut: 'Ярлык',
+  input: 'Поле ввода', shortcut: 'Ярлык', integration: 'Интеграция',
 } as const
 export const actionKinds = {
-  time: 'Текущее время', reach: 'Проверка доступности', http: 'HTTP GET', python: 'Python',
+  time: 'Текущее время', reach: 'Проверка доступности', http: 'HTTP GET', python: 'Python', activate: 'Активация интеграции',
 } as const
 export const colors = { green: 'Зелёный', yellow: 'Жёлтый', red: 'Красный' } as const
 export type Kind = keyof typeof kinds
@@ -29,6 +29,8 @@ export interface Frame extends Cell { width: number; height: number }
 export const fontFamilies = { system: 'inherit', serif: 'Georgia, serif', monospace: 'monospace' }
 
 export interface Item {
+  integration?: string
+  bindings?: { trigger: string; context: string }[]
   href?: string
   png?: string
   siteIcon?: boolean

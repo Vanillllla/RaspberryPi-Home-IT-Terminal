@@ -23,6 +23,7 @@ def database(*, write=False):
 def initialize():
     DB_PATH.parent.mkdir(parents=True, exist_ok=True)
     with database(write=True) as conn:
+        conn.execute("CREATE TABLE IF NOT EXISTS integrations (id TEXT PRIMARY KEY, definition TEXT NOT NULL)")
         conn.execute("CREATE TABLE IF NOT EXISTS templates (id TEXT PRIMARY KEY, definition TEXT NOT NULL)")
         conn.execute("CREATE TABLE IF NOT EXISTS deleted_templates (id TEXT PRIMARY KEY, revision INTEGER NOT NULL)")
         conn.execute("""CREATE TABLE IF NOT EXISTS desktops (
