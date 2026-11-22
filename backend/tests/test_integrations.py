@@ -13,6 +13,21 @@ from backend.templates import Definition, Invocation, create_template, run_actio
 
 
 class IntegrationTest(unittest.TestCase):
+    def test_service_script_arguments_and_sequential_dispatch(self):
+        root = Path(self.enterContext(tempfile.TemporaryDirectory()))
+        self.enterContext(patch.object(storage, "DB_PATH", root / "test.db"))
+        storage.initialize()
+        integration = integrations.create(integrations.Integration(name="Services", tasks=[
+            integrations.Task(name="Apply", script='systemctl "$1" sing-box\nsystemctl reload sing-box', inputs=1)]))
+        with patch.object(integrations, "run_program") as run:
+            integrations.invoke(integration["id"], 0, ["start"])
+            self.assertEqual([call.args[0][-2:] for call in run.call_args_list],
+                             [["start", "sing-box.service"], ["reload", "sing-box.service"]])
+            run.reset_mock()
+            with self.assertRaises(ValueError):
+                integrations.invoke(integration["id"], 0, ["invalid verb"])
+            run.assert_not_called()
+
     def test_command_snapshot_arguments_and_missing_definition(self):
         root = Path(self.enterContext(tempfile.TemporaryDirectory()))
         self.enterContext(patch.object(storage, "DB_PATH", root / "test.db"))

@@ -119,8 +119,13 @@ export function Builder({ cellSize, columns, maxRows, templates, busy, setBusy, 
     return { ...newItem(kind, t), frame: { x: 0, y: 0, width: Math.min(w, gridWidth), height: Math.min(h, gridHeight) } }
   }
   function add(kind: Kind, integration?: Integration) {
-    const base = fromPalette(kind)
-    const element = integration ? { ...base, integration: integration.id, label: integration.name, defaultLabel: false } : base
+    if (integration) {
+      const element = { ...newItem(kind, t), integration: integration.id, label: integration.name, defaultLabel: false }
+      change({ rows: [[...items, element]] })
+      select(element.id)
+      return
+    }
+    const element = fromPalette(kind)
     for (let y = 0; y <= gridHeight - element.frame.height; y++) {
       for (let x = 0; x <= gridWidth - element.frame.width; x++) {
         const frame = { ...element.frame, x, y }
@@ -202,7 +207,7 @@ export function Builder({ cellSize, columns, maxRows, templates, busy, setBusy, 
         const task = integration?.tasks[index]
         if (!task || !binding.trigger) continue
         const count = binding.context.trim() ? binding.context.split(',').length : 0
-        const expected = catalog.operations[task.operation]
+        const expected = task.script ? task.inputs : catalog.operations[task.operation]
         if (expected !== undefined && count !== expected) {
           setError(t('Для действия «{name}» требуется аргументов: {count}', { name: task.name, count: expected }))
           return
@@ -287,6 +292,11 @@ export function Builder({ cellSize, columns, maxRows, templates, busy, setBusy, 
             </div>
           </div>
         </div>
+        {items.some(el => el.kind === 'integration') && <ul aria-label={t('Элементы интеграций')} className="attached-integrations">
+          {items.filter(el => el.kind === 'integration').map(el => <li key={el.id}>
+            <button aria-pressed={el.id === elementId} onClick={() => select(el.id)}>{itemLabel(el, t)}</button>
+          </li>)}
+        </ul>}
       </section>
       <section className="builder-inspector"><div className="builder-tabs">
         <button aria-pressed={tab === 'element'} onClick={() => setTab('element')}>{t('Свойства')}</button>
@@ -357,7 +367,7 @@ export function Builder({ cellSize, columns, maxRows, templates, busy, setBusy, 
             {t('Создать отдельное действие')}
           </button>}
         </>}
-        {item.kind !== 'indicator' && <>
+        {item.kind !== 'indicator' && item.kind !== 'integration' && <>
           <label>{t('Шрифт')}<select value={item.fontFamily ?? 'system'}
             onChange={e => updateItem({ fontFamily: e.target.value as Item['fontFamily'] })}>
             <option value="system">{t('Системный')}</option><option value="serif">{t('С засечками')}</option>

@@ -43,6 +43,12 @@ function positions(rows: Item[][], width: number) {
 
 // Convert legacy drafts on opening. Stored templates keep their original rendering until saved.
 export function editableDraft(draft: Draft): Draft {
+  const integrations = draft.rows.flat().filter(item => item.kind === 'integration')
+  if (integrations.length) {
+    const visible = editableDraft({ ...draft, rows: draft.rows.map(row => row.filter(item => item.kind !== 'integration')).filter(row => row.length) })
+    const attached = integrations.map(item => ({ ...item, frame: null, cell: null, span: null }))
+    return { ...visible, rows: [[...visible.rows.flat(), ...attached]] }
+  }
   const items = draft.rows.flat()
   if (items.every(e => e.frame)) return draft
   const width = draft.defaultWidth ?? 4
@@ -80,7 +86,8 @@ interface Props {
   render: (item: Item) => ReactNode
 }
 
-export function ElementLayout({ rows, width, height, flowWidth = width, render }: Props) {
+export function ElementLayout({ rows: sourceRows, width, height, flowWidth = width, render }: Props) {
+  const rows = sourceRows.map(row => row.filter(item => item.kind !== 'integration')).filter(row => row.length)
   const items = rows.flat()
   if (items.every(e => e.frame)) {
     return <div className="fine-layout">{items.map(item =>

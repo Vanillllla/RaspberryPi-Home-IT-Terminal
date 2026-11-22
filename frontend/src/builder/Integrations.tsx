@@ -3,7 +3,7 @@ import { api } from '../api'
 import { useTranslation } from '../i18n'
 import { actionLabel, contextExpression, itemLabel, type Action, type Item } from './model'
 
-interface Task { name: string; operation: string }
+interface Task { name: string; operation: string; script?: string; inputs?: number }
 export interface Integration { id: string; name: string; tasks: Task[] }
 export interface Catalog { elements: Integration[]; operations: Record<string, number> }
 
@@ -22,7 +22,7 @@ export function IntegrationPalette({ catalog, setCatalog, add }: {
       .catch(e => { if (active) setError(e.message) })
     return () => { active = false }
   }, [setCatalog])
-  const blank = () => ({ name: '', operation: Object.keys(catalog.operations)[0] ?? '' })
+  const blank = () => ({ name: '', operation: '', script: '', inputs: 0 })
   async function save() {
     setPending(true)
     try {
@@ -52,14 +52,21 @@ export function IntegrationPalette({ catalog, setCatalog, add }: {
           <label>{t('Название действия')}<input value={task.name} maxLength={100} onChange={e =>
             setTasks(tasks.map((v, j) => j === i ? { ...v, name: e.target.value } : v))} /></label>
           <label>{t('Системная операция')}<select value={task.operation} onChange={e =>
-            setTasks(tasks.map((v, j) => j === i ? { ...v, operation: e.target.value } : v))}>
+            setTasks(tasks.map((v, j) => j === i ? { ...v, operation: e.target.value, script: '' } : v))}>
+            <option value="">{t('Свои команды')}</option>
             {Object.keys(catalog.operations).map(key => <option key={key}>{key}</option>)}
           </select></label>
+          {!task.operation && <>
+            <label>{t('Команды службы')}<textarea rows={3} value={task.script ?? ''} placeholder="systemctl start sing-box"
+              onChange={e => setTasks(tasks.map((v, j) => j === i ? { ...v, script: e.target.value } : v))} /></label>
+            <small>{t('По одной команде systemctl на строку. Аргументы контекста: $1, $2…')}</small>
+            <label>{t('Число аргументов')}<input type="number" min={0} max={16} value={task.inputs ?? 0}
+              onChange={e => setTasks(tasks.map((v, j) => j === i ? { ...v, inputs: Number(e.target.value) } : v))} /></label>
+          </>}
           {tasks.length > 1 && <button onClick={() => setTasks(tasks.filter((_, j) => j !== i))}>{t('Удалить действие')}</button>}
         </div>)}
-        {!Object.keys(catalog.operations).length && <small>{t('На устройстве нет системных операций')}</small>}
         <button disabled={tasks.length >= 32} onClick={() => setTasks([...tasks, blank()])}>{t('Добавить действие')}</button>
-        <button disabled={!name.trim() || tasks.some(v => !v.name.trim() || !v.operation)} onClick={() => void save()}>{t('Сохранить')}</button>
+        <button disabled={!name.trim() || tasks.some(v => !v.name.trim() || (!v.operation && !v.script?.trim()))} onClick={() => void save()}>{t('Сохранить')}</button>
         <button onClick={() => setEditing(false)}>{t('Отмена')}</button>
       </fieldset>}
     {error && <p role="alert">{error}</p>}
@@ -82,7 +89,7 @@ export function IntegrationBindings({ item, items, actions, catalog, update }: {
       <option value="">{t('Без обновления')}</option>
       {actions.filter(a => a.kind === 'activate').map(a => <option key={a.id} value={a.id}>{actionLabel(a, t)}</option>)}
     </select></td><td><input aria-label={t('Контекст') + ' · ' + task.name} value={bindings[i].context}
-      placeholder={String(catalog.operations[task.operation] ?? '') + ' · ' + t('Аргументы')}
+      placeholder={String(task.script ? task.inputs : catalog.operations[task.operation] ?? '') + ' · ' + t('Аргументы')}
       onChange={e => update({ bindings: bindings.map((v, j) => j === i ? { ...v, context: e.target.value } : v) })} /></td>
   </tr>)}</tbody></table>
   <small>{t('Выберите действие типа «Активация интеграции». Ссылки на входы указывайте через запятую.')}</small>

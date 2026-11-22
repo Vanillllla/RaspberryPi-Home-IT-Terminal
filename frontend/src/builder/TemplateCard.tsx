@@ -52,7 +52,7 @@ export function ElementView({ item, inputs = {}, outputs = {}, change }: Element
   const label = itemLabel(item, t)
   const value = inputs[item.id]
   switch (item.kind) {
-    case 'integration': return <span>{label}</span>
+    case 'integration': return null
     case 'shortcut':
       return <Shortcut item={item} label={label} />
     case 'input':

@@ -115,8 +115,9 @@ class Definition(BaseModel):
             raise ValueError(tr("Нужны уникальные ID элементов (до 128 элементов)", "Element IDs must be unique (up to 128 elements)"))
         if len({a.id for a in self.actions}) != len(self.actions):
             raise ValueError(tr("ID действий должны быть уникальны", "Action IDs must be unique"))
-        frames = [e.frame for e in elements.values() if e.frame is not None]
-        if frames and (len(frames) != count or any(e.cell or e.span for e in elements.values())):
+        visible = [e for e in elements.values() if e.kind != "integration"]
+        frames = [e.frame for e in visible if e.frame is not None]
+        if frames and (len(frames) != len(visible) or any(e.cell or e.span for e in visible)):
             raise ValueError(tr("Задайте frame для всех элементов без старых полей cell и span", "Set frame for every element and omit the legacy cell and span fields"))
         for index, frame in enumerate(frames):
             if (frame.x + frame.width > self.defaultWidth * SUBDIVISIONS
@@ -133,6 +134,7 @@ class Definition(BaseModel):
                     if any(ref not in elements or elements[ref].kind not in ("input", "switch", "slider")
                            for ref in binding.references()):
                         raise ValueError(tr("Проверьте ссылки на элементы ввода", "Check input element references"))
+                continue
             if e.kind == "shortcut":
                 url = urlsplit(e.href)
                 if url.scheme not in ("http", "https") or not url.hostname:

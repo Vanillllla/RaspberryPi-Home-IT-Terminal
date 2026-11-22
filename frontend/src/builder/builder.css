@@ -137,3 +137,5 @@ dialog:has(.builder) { width: min(1380px, 96vw); max-width: 96vw; height: 92dvh;
 .integration-form, .integration-form label { display: grid; gap: .35rem; min-width: 0; }
 .integration-form input, .integration-form select, .integration-bindings input, .integration-bindings select { width: 100%; min-width: 0; }
 .integration-bindings { width: 100%; table-layout: fixed; overflow-wrap: anywhere; }
+.attached-integrations { display: flex; flex-wrap: wrap; gap: .5rem 1.75rem; margin: 0; padding-inline-start: 1.25rem; }
+.attached-integrations button { max-width: 100%; overflow-wrap: anywhere; }
