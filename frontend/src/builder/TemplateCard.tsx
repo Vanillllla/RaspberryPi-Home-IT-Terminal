@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { api } from '../api'
 import { WidgetSlider, WidgetSwitch, type WidgetInstance } from '../plugin'
-import { cellStyle, colors, type Action, type Color, type Item, type Inputs, type Outputs, type Template } from './model'
+import { ElementLayout } from './ElementLayout'
+import { colors, type Action, type Color, type Item, type Inputs, type Outputs, type Template } from './model'
 
 function TextResult({ value }: { value: string }) {
   if (value.startsWith('{')) {
@@ -124,11 +125,8 @@ export function TemplateCard({ template, instance, active, patch }: Props) {
   }
 
   return <div className="built-card">
-    {template.rows.map((row, index) => <div className="built-row" key={index}>
-      {row.map(item => <div className="built-cell" key={item.id} style={cellStyle(item, instance.width)}>
-        <ElementView item={item} inputs={inputs} outputs={outputs} change={change} />
-      </div>)}
-    </div>)}
+    <ElementLayout rows={template.rows} width={template.defaultWidth ?? 4} height={template.defaultHeight ?? 2}
+      flowWidth={instance.width} render={item => <ElementView item={item} inputs={inputs} outputs={outputs} change={change} />} />
     {Object.entries(messages).filter(([, message]) => message).map(([id, message]) =>
       <p className="action-message" role="status" key={id}><b>{template.actions.find(a => a.id === id)?.name ?? 'Сохранение'}</b> · {message}</p>)}
   </div>

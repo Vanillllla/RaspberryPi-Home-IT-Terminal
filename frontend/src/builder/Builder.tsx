@@ -1,9 +1,11 @@
 import { useLayoutEffect, useRef, useState, type CSSProperties } from 'react'
 import { api } from '../api'
+import { canPlace, ElementLayout } from './ElementLayout'
+import { useElementDrag } from './useElementDrag'
 import { ElementView } from './TemplateCard'
 import { TemplateImport } from './TemplateImport'
 import { ActionEditor } from './ActionEditor'
-import { actionKinds, cellStyle, colors, emptyDraft, kinds, newAction, newItem, randomKey, type ActionKind, type Color,
+import { actionKinds, colors, emptyDraft, kinds, newAction, newItem, randomKey, type ActionKind, type Color,
   type Draft, type Item, type Kind, type Template } from './model'
 import './builder.css'
 
@@ -59,7 +61,26 @@ export function Builder({ cellSize, columns, maxRows, templates, busy, setBusy, 
   }, [])
   const scale = space ? Math.min(1, space / (Math.max(1, width) * cellSize)) : 1
 
+  const surface = useRef<HTMLDivElement>(null)
+  const gridWidth = Math.max(1, Math.min(columns, Math.floor(width)))
+  const gridHeight = Math.max(1, Math.min(maxRows, Math.floor(height)))
+  const drag = useElementDrag(surface, items, gridWidth, gridHeight, (element, cell) => {
+    const existingRow = draft.rows.findIndex(r => r.some(e => e.id === element.id))
+    if (existingRow < 0) {
+      replaceRow([...row, { ...element, cell }])
+      select(rowIndex, element.id)
+    } else {
+      change({ rows: draft.rows.map(r => r.map(e => e.id === element.id ? { ...e, cell } : e)) })
+      select(existingRow, element.id)
+    }
+  })
+
   function change(delta: Partial<Draft>) {
+    if ((delta.defaultWidth || delta.defaultHeight) && items.some(e => e.cell &&
+      !canPlace(e, e.cell, items, delta.defaultWidth ?? width, delta.defaultHeight ?? height))) {
+      setError('Сначала переместите закреплённые элементы в границы нового размера')
+      return
+    }
     setError('')
     setDraft(old => ({ ...old, ...delta }))
   }
@@ -73,6 +94,10 @@ export function Builder({ cellSize, columns, maxRows, templates, busy, setBusy, 
     change({ rows: draft.rows.map((r, i) => i === rowIndex ? next : r) })
   }
   function updateItem(delta: Partial<Item>) {
+    if (item?.cell && delta.span !== undefined && !canPlace({ ...item, ...delta }, item.cell, items, width, height)) {
+      setError('Для такой ширины недостаточно свободных клеток')
+      return
+    }
     replaceRow(row.map(e => e.id === elementId ? { ...e, ...delta } : e))
   }
   function select(i: number, id = '') {
@@ -119,9 +144,9 @@ export function Builder({ cellSize, columns, maxRows, templates, busy, setBusy, 
     {error && <p role="alert">{error}</p>}
     <div className="builder-layout">
       <section className="builder-palette"><h3>Элементы</h3>
-        {(Object.keys(kinds) as Kind[]).map(k => <button key={k} onClick={() => {
+        {(Object.keys(kinds) as Kind[]).map(k => <button key={k} {...drag.handlers(() => newItem(k), () => {
           const e = newItem(k); replaceRow([...row, e]); select(rowIndex, e.id)
-        }}><span aria-hidden="true">{symbols[k]}</span>{kinds[k]}</button>)}
+        })}><span aria-hidden="true">{symbols[k]}</span>{kinds[k]}</button>)}
       </section>
       <section className="builder-canvas"><h3>Предпросмотр</h3>
         <div className="preview-size">
@@ -133,17 +158,19 @@ export function Builder({ cellSize, columns, maxRows, templates, busy, setBusy, 
         </div>
         <div className="preview-stage" ref={stage}>
           <div className="builder-sheet" data-guides={guides} style={{ width: Math.max(1, Math.min(width, columns)) * cellSize,
-            height: Math.max(1, Math.min(height, maxRows)) * cellSize, zoom: scale, '--preview-cell': cellSize + 'px' } as CSSProperties}>
+            height: Math.max(1, Math.min(height, maxRows)) * cellSize, zoom: scale } as CSSProperties}>
             <div className="builder-sheet-frame">
               <h4>{draft.name || 'Новый виджет'}</h4>
-              <div className="built-card preview-body">
-                {draft.rows.map((r, i) => <div key={i} className="built-row">
-                  {r.map(el => <div key={el.id} className="built-cell builder-preview-cell" style={cellStyle(el, Math.max(1, width))}>
+              <div className="preview-body" ref={surface} style={{ '--columns': gridWidth, '--rows': gridHeight } as CSSProperties}>
+                <ElementLayout rows={draft.rows} width={gridWidth} height={gridHeight} render={(el, i) =>
+                  <div className="builder-preview-cell">
                     <div inert><ElementView item={el} /></div>
                     <button aria-label={'Выбрать ' + kinds[el.kind] + ' · ' + el.label} aria-pressed={el.id === elementId}
-                      onClick={() => select(i, el.id)} />
-                  </div>)}
-                </div>)}
+                      {...drag.handlers(() => el, () => select(i, el.id))} />
+                  </div>} />
+                {drag.target && <div aria-hidden="true" className="element-drop" data-valid={drag.target.valid}
+                  style={{ left: drag.target.cell.x / gridWidth * 100 + '%', top: drag.target.cell.y / gridHeight * 100 + '%',
+                    width: drag.target.span / gridWidth * 100 + '%', height: 100 / gridHeight + '%' }}><div inert><ElementView item={drag.target.item} /></div></div>}
               </div>
             </div>
           </div>
@@ -196,13 +223,16 @@ export function Builder({ cellSize, columns, maxRows, templates, busy, setBusy, 
           <option value="">Автоматически</option>
           {Array.from({ length: columns }, (_, i) => <option key={i} value={i + 1}>{i + 1} кл.</option>)}
         </select></label>
-        <label>Разместить в строке<select value={rowIndex} onChange={e => {
+        {item.cell && <button onClick={() => updateItem({ cell: null })}>
+          Снять закрепление · столбец {item.cell.x + 1}, ряд {item.cell.y + 1}
+        </button>}
+        <label>Разместить в строке<select disabled={!!item.cell} value={rowIndex} onChange={e => {
           const dest = Number(e.target.value)
           change({ rows: draft.rows.map((r, i) => i === dest ? [...r, item] : i === rowIndex ? r.filter(x => x.id !== item.id) : r) })
           select(dest, item.id)
         }}>{draft.rows.map((_, i) => <option key={i} value={i}>{i + 1}</option>)}</select></label>
-        <div className="builder-order"><button disabled={!index} onClick={() => replaceRow(swap(row, index, index - 1))}>← Левее</button>
-          <button disabled={index === row.length - 1} onClick={() => replaceRow(swap(row, index, index + 1))}>Правее →</button></div>
+        <div className="builder-order"><button disabled={!!item.cell || !index} onClick={() => replaceRow(swap(row, index, index - 1))}>← Левее</button>
+          <button disabled={!!item.cell || index === row.length - 1} onClick={() => replaceRow(swap(row, index, index + 1))}>Правее →</button></div>
         <button onClick={() => { replaceRow(row.filter(e => e.id !== elementId)); setElement('') }}>Удалить элемент</button>
       </> : <p>Выберите элемент в предпросмотре.</p>)}
       {tab === 'actions' && <>

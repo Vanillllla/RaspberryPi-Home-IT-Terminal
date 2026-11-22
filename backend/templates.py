@@ -19,11 +19,17 @@ Id = Annotated[str, Field(pattern=r"^[A-Za-z][A-Za-z0-9_-]{0,63}$")]
 Color = Literal["green", "yellow", "red"]
 
 
+class Cell(BaseModel):
+    x: int = Field(strict=True, ge=0, lt=COLUMNS)
+    y: int = Field(strict=True, ge=0, lt=MAX_ROWS)
+
+
 class Element(BaseModel):
     model_config = ConfigDict(allow_inf_nan=False)
     id: Id
     kind: Literal["text", "button", "switch", "slider", "indicator"]
     label: str = Field(max_length=2000)
+    cell: Cell | None = None
     span: int | None = Field(default=None, strict=True, ge=1, le=COLUMNS)
     command: str = Field(default="", max_length=100)
     checked: bool = False
@@ -66,6 +72,9 @@ class Definition(BaseModel):
     def elements(self):
         return {e.id: e for row in self.rows for e in row}
 
+    def runtime_elements(self):
+        return {k: e.model_dump(exclude={"cell", "span"}) for k, e in self.elements().items()}
+
     def validate_links(self):
         elements = self.elements()
         count = sum(map(len, self.rows))
@@ -75,7 +84,16 @@ class Definition(BaseModel):
             raise ValueError("Нужны уникальные ID элементов (до 128 элементов)")
         if len({a.id for a in self.actions}) != len(self.actions):
             raise ValueError("ID действий должны быть уникальны")
+        occupied = set()
         for e in elements.values():
+            if e.cell is not None:
+                end = e.cell.x + (e.span or 1)
+                if end > self.defaultWidth or e.cell.y >= self.defaultHeight:
+                    raise ValueError(f"{e.label}: позиция выходит за границы шаблона")
+                footprint = {(x, e.cell.y) for x in range(e.cell.x, end)}
+                if occupied & footprint:
+                    raise ValueError(f"{e.label}: ячейка шаблона занята")
+                occupied.update(footprint)
             if e.kind == "slider" and not valid_slider(e, e.initial):
                 raise ValueError(f"{e.label}: проверьте диапазон, шаг и начальное значение")
         commands = {e.command for e in elements.values() if e.kind in ("button", "switch", "slider")}
@@ -141,7 +159,7 @@ def save(body, template_id=None, creation_key=None):
                     return {"id": template_id, **body.model_dump()}
                 raise HTTPException(409, "Версия шаблона изменилась. Откройте его заново.")
             conn.execute("UPDATE templates SET definition=? WHERE id=?", (body.model_dump_json(), template_id))
-            if previous.rows == body.rows and previous.actions == body.actions:
+            if previous.actions == body.actions and previous.runtime_elements() == body.runtime_elements():
                 return {"id": template_id, **body.model_dump()}
             # Revalidate saved controls against the edited ranges. Outputs belong to the old bindings.
             for widget in conn.execute("SELECT id,settings FROM widgets WHERE plugin_id=?", (template_id,)).fetchall():

@@ -11,7 +11,10 @@ export type ActionKind = keyof typeof actionKinds
 export type Inputs = Record<string, number | boolean>
 export type Outputs = Record<string, string>
 
+export interface Cell { x: number; y: number }
+
 export interface Item {
+  cell?: Cell | null
   id: string; kind: Kind; label: string; command: string; checked: boolean; color: Color
   span?: number | null
   minimum: number; maximum: number; step: number; initial: number

@@ -49,6 +49,22 @@ class TemplateTests(unittest.TestCase):
         self.assertEqual(full.exception.status_code, 409)
         self.assertEqual(state()["widgets"], [first, second])
 
+    def test_element_placement_preserves_output_and_rejects_collisions(self):
+        template = create_template(Definition(**self.draft))
+        widget = create_widget(1, AddWidget(plugin_id=template["id"]))
+        run_action(widget["id"], "read", Invocation(revision=1))
+        before = state()["widgets"]
+        out, button = template["rows"][0]
+        out.update(cell={"x": 1, "y": 1}, span=2)
+        saved = edit_template(template["id"], Definition(**template))
+        self.assertEqual(state()["widgets"], before)
+        for x, y in [(2, 1), (4, 0), (0, 2)]:
+            button["cell"] = {"x": x, "y": y}
+            with self.assertRaises(HTTPException) as error:
+                edit_template(template["id"], Definition(**{**template, "revision": 2}))
+            self.assertEqual(error.exception.status_code, 422)
+            self.assertEqual(state()["templates"], [saved])
+
     def test_running_action_does_not_write_into_edited_template(self):
         template = create_template(Definition(**self.draft))
         widget = create_widget(1, AddWidget(plugin_id=template["id"]))
