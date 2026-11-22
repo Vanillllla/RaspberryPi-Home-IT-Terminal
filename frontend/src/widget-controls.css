@@ -41,6 +41,6 @@
   .widget-slider-track::before { background: ButtonText; }
 }
 .widget-output { font-weight: 600; }
-.widget-status[data-color="green"] { color: light-dark(#187136, #74d893); }
-.widget-status[data-color="yellow"] { color: light-dark(#786500, #ffdc52); }
-.widget-status[data-color="red"] { color: light-dark(#ba2432, #ff909b); }
+.widget-status[data-color="green"] { color: light-dark(#006430, #7cf6a7); }
+.widget-status[data-color="yellow"] { color: light-dark(#6d5400, #ffe578); }
+.widget-status[data-color="red"] { color: light-dark(#ab1734, #ffb6c2); }
