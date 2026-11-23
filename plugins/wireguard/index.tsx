@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { useTranslation, WidgetSwitch, type Plugin, type WidgetProps } from '@terminal/plugin'
+import { onSharedChange, useTranslation, WidgetSwitch, type Plugin, type WidgetProps } from '@terminal/plugin'
 import './wireguard.css'
 
 interface Profile {
@@ -23,6 +23,7 @@ const words = {
     remove: 'Удалить', working: 'Подождите…', failed: 'Не удалось выполнить запрос', gateway: 'Узел для проверки',
     unchecked: 'Не проверено', check: 'Проверить', checking: 'Проверка…', automatic: 'Автоматическая проверка пинга',
     interval: 'Интервал, секунд', save: 'Сохранить',
+    changed: 'Расписание изменилось на другом устройстве.', reload: 'Загрузить актуальные данные',
   },
   en: {
     empty: 'Add a configuration in Details.', offline: 'Disconnected', timeout: 'No reply',
@@ -30,6 +31,7 @@ const words = {
     remove: 'Remove', working: 'Please wait…', failed: 'Request failed', gateway: 'Ping target',
     unchecked: 'Not checked', check: 'Check', checking: 'Checking…', automatic: 'Automatic ping checks',
     interval: 'Interval, seconds', save: 'Save',
+    changed: 'The schedule changed on another device.', reload: 'Load current data',
   },
 }
 
@@ -99,14 +101,16 @@ function useProfiles(id: number, monitor: boolean) {
     }
     refresh()
     window.addEventListener(changed, refresh)
+    const unsubscribe = onSharedChange({ kind: 'plugin', plugin: 'wireguard', id }, refresh)
     if (monitor) window.addEventListener(checkRequested, check)
     return () => {
       active?.abort()
       clearTimeout(timer)
       window.removeEventListener(changed, refresh)
       window.removeEventListener(checkRequested, check)
+      unsubscribe()
     }
-  }, [path, changed, checkRequested, monitor, language])
+  }, [id, path, changed, checkRequested, monitor, language])
 
   async function request(suffix: string, options: RequestInit) {
     const res = await fetch(path + suffix, {
@@ -123,12 +127,14 @@ function useProfiles(id: number, monitor: boolean) {
     setBusy(true)
     try {
       await task()
+      return true
     } catch (e) {
       setError(e instanceof TypeError || !(e instanceof Error) ? copy.failed : e.message)
     } finally {
       window.dispatchEvent(new Event(changed))
       setBusy(false)
     }
+    return false
   }
   return { copy, language, profiles, schedule, checking, busy, error: error || (loadError ? copy.read : ''), request, update,
     check: () => window.dispatchEvent(new Event(checkRequested)),
@@ -159,20 +165,27 @@ function Widget({ instance }: WidgetProps) {
 
 function Details({ instance }: WidgetProps) {
   const { copy, profiles, schedule, busy, error, request, update } = useProfiles(instance.id, false)
+  const [draft, setDraft] = useState<{ automatic: boolean; interval: string; base: Schedule } | null>(null)
+  const stale = draft && schedule && (draft.base.automatic !== schedule.automatic || draft.base.interval !== schedule.interval)
   return <div className="wg-details">
-    {schedule && <form key={schedule.automatic + ':' + schedule.interval} onSubmit={event => {
+    {schedule && <form onSubmit={event => {
       event.preventDefault()
       const fields = new FormData(event.currentTarget)
       void update(() => request('/schedule', {
         method: 'PUT', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ automatic: fields.has('automatic'), interval: Number(fields.get('interval')) }),
-      }))
+        body: JSON.stringify({ automatic: fields.has('automatic'), interval: Number(fields.get('interval')), expected: draft?.base ?? schedule }),
+      })).then(saved => { if (saved) setDraft(null) })
     }}>
       <fieldset className="wg-schedule" disabled={busy}>
-        <label><input type="checkbox" name="automatic" defaultChecked={schedule.automatic} />{copy.automatic}</label>
-        <label>{copy.interval}<input type="number" name="interval" min={1} max={3600} required defaultValue={schedule.interval} /></label>
+        <label><input type="checkbox" name="automatic" checked={draft?.automatic ?? schedule.automatic}
+          onChange={e => setDraft({ base: draft?.base ?? schedule,
+            automatic: e.target.checked, interval: draft?.interval ?? String(schedule.interval) })} />{copy.automatic}</label>
+        <label>{copy.interval}<input type="number" name="interval" min={1} max={3600} required
+          value={draft?.interval ?? String(schedule.interval)} onChange={e => setDraft({ base: draft?.base ?? schedule,
+            automatic: draft?.automatic ?? schedule.automatic, interval: e.target.value })} /></label>
         <button type="submit">{copy.save}</button>
       </fieldset>
+      {stale && <p role="status">{copy.changed} <button type="button" onClick={() => setDraft(null)}>{copy.reload}</button></p>}
     </form>}
     <label>{copy.upload}
       <input type="file" multiple accept=".conf" disabled={busy} onChange={e => {

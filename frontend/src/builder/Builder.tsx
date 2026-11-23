@@ -48,12 +48,11 @@ interface Props {
   templates: Template[]
   busy: boolean
   setBusy: (value: boolean) => void
-  imported: (template: Template) => void
+  refresh: () => Promise<unknown>
   saved: (template: Template) => Promise<void>
-  deleted: (id: string) => void
 }
 
-export function Builder({ cellSize, columns, maxRows, templates, busy, setBusy, imported, saved, deleted }: Props) {
+export function Builder({ cellSize, columns, maxRows, templates, busy, setBusy, refresh, saved }: Props) {
   const { t } = useTranslation()
   const [draft, setDraft] = useState<Draft>(emptyDraft)
   const [templateId, setTemplateId] = useState('')
@@ -66,6 +65,7 @@ export function Builder({ cellSize, columns, maxRows, templates, busy, setBusy, 
   const [error, setError] = useState('')
   const [catalog, setCatalog] = useState<Catalog>({ elements: [], operations: {} })
   const selectedTemplate = templates.find(template => template.id === templateId)
+  const stale = Boolean(templateId) && selectedTemplate?.revision !== draft.revision
   const items = draft.rows.flat()
   const item = items.find(e => e.id === elementId)
   const action = draft.actions.find(a => a.id === actionId)
@@ -235,8 +235,8 @@ export function Builder({ cellSize, columns, maxRows, templates, busy, setBusy, 
     setError('')
     setBusy(true)
     try {
-      await api('templates/' + template.id + '?revision=' + template.revision, 'DELETE')
-      deleted(template.id)
+      await api('templates/' + template.id + '?revision=' + draft.revision, 'DELETE')
+      await refresh()
       open('')
     } catch (e) {
       setError(e instanceof Error ? e.message : t('Не удалось удалить шаблон'))
@@ -247,16 +247,22 @@ export function Builder({ cellSize, columns, maxRows, templates, busy, setBusy, 
   return <div className="builder" inert={busy} aria-busy={busy} onPointerDownCapture={drag.cancelClick} onKeyDownCapture={drag.cancelClick}>
     <div className="builder-bar">
       <label>{t('Шаблон')}<select aria-label={t('Шаблон')} value={templateId} onChange={e => open(e.target.value)}>
+        {templateId && !selectedTemplate && <option value={templateId}>{t('Шаблон удалён')}</option>}
         <option value="">{t('Новый шаблон')}</option>{templates.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
       </select></label>
       <label>{t('Название шаблона')}<input value={draft.name} maxLength={100} placeholder={t('Например, Домашний сервер')}
         onChange={e => change({ name: e.target.value })} /></label>
       <label>{t('Описание')}<input value={draft.description ?? ''} maxLength={2000}
         onChange={e => change({ description: e.target.value })} /></label>
-      <TemplateImport key={templateId} setBusy={setBusy} imported={imported} open={open} />
+      <TemplateImport key={templateId} setBusy={setBusy} imported={refresh} open={open} />
       <button className="primary" disabled={busy} onClick={save}>{t('Сохранить шаблон')}</button>
       {selectedTemplate && <button disabled={busy} onClick={() => void remove(selectedTemplate)}>{t('Удалить шаблон')}</button>}
     </div>
+    {stale && <p role="status">{t('Шаблон изменился на другом устройстве. Черновик сохранён в редакторе.')}
+      {' '}{selectedTemplate
+        ? <button disabled={busy} onClick={() => open(templateId)}>{t('Загрузить актуальные данные')}</button>
+        : <button disabled={busy} onClick={() => { setTemplateId(''); setCreationKey(randomKey()); setError('') }}>{t('Сохранить как новый шаблон')}</button>}
+    </p>}
     {error && <p role="alert">{error}</p>}
     <div className="builder-layout">
       <section className="builder-palette"><h3>{t('Элементы')}</h3>

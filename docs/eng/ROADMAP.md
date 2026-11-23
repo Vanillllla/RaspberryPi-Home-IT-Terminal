@@ -14,6 +14,8 @@ A later iteration implemented a square-cell grid, per-instance dimensions, and d
 
 The first visual builder stores shared templates in SQLite. It supports basic elements, timer/command bindings, built-in actions, and Python execution in a separate process.
 
+Saved state now synchronizes between browsers through FastAPI WebSocket notifications and REST snapshots. Browsers keep local navigation and pending drafts, and reconnect automatically.
+
 ## 0. Establish requirements
 
 **Acceptance:** A complete project vision, persistent development instructions, and a roadmap with verifiable outcomes exist in the repository.

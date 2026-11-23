@@ -1,5 +1,6 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { api } from '../api'
+import { onSharedChange } from '../sync'
 import { useTranslation } from '../i18n'
 import { actionLabel, contextExpression, itemLabel, type Action, type Item } from './model'
 
@@ -16,18 +17,26 @@ export function IntegrationPalette({ catalog, setCatalog, add }: {
   const [tasks, setTasks] = useState<Task[]>([])
   const [error, setError] = useState('')
   const [pending, setPending] = useState(false)
+  const refresh = useRef(() => {})
   useEffect(() => {
     let active = true
-    api<Catalog>('integrations').then(result => { if (active) setCatalog(result) })
-      .catch(e => { if (active) setError(e.message) })
-    return () => { active = false }
+    let request = 0
+    function load() {
+      const current = ++request
+      api<Catalog>('integrations').then(result => { if (active && current === request) setCatalog(result) })
+        .catch(e => { if (active && current === request) setError(e.message) })
+    }
+    refresh.current = load
+    load()
+    const unsubscribe = onSharedChange({ kind: 'integrations' }, load)
+    return () => { active = false; refresh.current = () => {}; unsubscribe() }
   }, [setCatalog])
   const blank = () => ({ name: '', operation: '', script: '', inputs: 0 })
   async function save() {
     setPending(true)
     try {
-      const created = await api<Integration>('integrations', 'POST', { name, tasks })
-      setCatalog({ ...catalog, elements: [...catalog.elements, created] })
+      await api('integrations', 'POST', { name, tasks })
+      refresh.current()
       setEditing(false); setError('')
     } catch (e) { setError(String(e)) } finally { setPending(false) }
   }
@@ -36,7 +45,7 @@ export function IntegrationPalette({ catalog, setCatalog, add }: {
     setPending(true)
     try {
       await api('integrations/' + el.id, 'DELETE')
-      setCatalog({ ...catalog, elements: catalog.elements.filter(entry => entry.id !== el.id) })
+      refresh.current()
       setError('')
     } catch (e) { setError(String(e)) } finally { setPending(false) }
   }

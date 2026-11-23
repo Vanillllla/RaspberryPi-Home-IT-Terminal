@@ -18,11 +18,12 @@ interface Props {
   title: (widget: WidgetInstance) => string
   openActions: (id: number) => void
   render: (widget: WidgetInstance) => ReactNode
-  move: (id: number, slot: number, rows: number, destination: number) => Promise<void>
+  move: (widget: WidgetInstance, slot: number, rows: number, destination: number) => Promise<void>
 }
 
 interface Press {
   pointer: number
+  widget: WidgetInstance
   startX: number
   startY: number
   gripX: number
@@ -58,9 +59,9 @@ export function Grid({ desktop, desktops, widgets: allWidgets, columns, maxRows,
   const [slide, setSlide] = useState<{ from: number; direction: number; width: number } | null>(null)
   const destination = desktops.find(d => d.id === previewId) ?? desktop
   const widgets = allWidgets.filter(w => w.desktop_id === destination.id)
-  const [picked, setPicked] = useState<number | null>(null)
+  const [picked, setPicked] = useState<WidgetInstance | null>(null)
   const [dragging, setDragging] = useState<number | null>(null)
-  const selected = allWidgets.find(w => w.desktop_id === desktop.id && w.id === (dragging ?? picked))
+  const selected = allWidgets.find(w => w.desktop_id === desktop.id && w.id === (dragging ?? picked?.id))
   const crossing = destination.id !== desktop.id
   // Keep the captured tile mounted at the same DOM position throughout the gesture.
   const tiles = slide || crossing
@@ -98,6 +99,9 @@ export function Grid({ desktop, desktops, widgets: allWidgets, columns, maxRows,
     }
   }, [interactive])
   useLayoutEffect(() => { reset() }, [area.width, area.height, desktop.id])
+  useLayoutEffect(() => {
+    if ((dragging !== null || picked) && !selected) reset()
+  }, [dragging, picked, selected?.id])
   useEffect(() => {
     function escape(e: KeyboardEvent) {
       if (interactive && e.key === 'Escape') {
@@ -188,10 +192,11 @@ export function Grid({ desktop, desktops, widgets: allWidgets, columns, maxRows,
   }
 
   async function finish(w: WidgetInstance, slot: number | null) {
+    const original = press.current?.widget ?? picked ?? w
     reset()
     if (slot === null || (!crossing && slot === w.slot) || !interactive) return
     if (!crossing) setPending({ id: w.id, slot })
-    try { await move(w.id, slot, rows, destination.id) }
+    try { await move(original, slot, rows, destination.id) }
     finally { setPending(null) }
   }
 
@@ -233,7 +238,7 @@ export function Grid({ desktop, desktops, widgets: allWidgets, columns, maxRows,
     tile.style.setProperty('--free-x', rect.left - bounds.left + 'px')
     tile.style.setProperty('--free-y', rect.top - bounds.top + 'px')
     const grip: Press = {
-      pointer: e.pointerId, startX: e.clientX, startY: e.clientY, gripX, gripY, tile, fromHandle, dragging: false,
+      pointer: e.pointerId, widget: w, startX: e.clientX, startY: e.clientY, gripX, gripY, tile, fromHandle, dragging: false,
     }
     press.current = grip
     if (!fromHandle) grip.timer = window.setTimeout(() => lift(grip, w), 350)
@@ -319,7 +324,7 @@ export function Grid({ desktop, desktops, widgets: allWidgets, columns, maxRows,
                 aria-label={t('Переместить: {title}', { title: title(w) })} aria-pressed={selected?.id === w.id}
                 title={t('Потяните для переноса или нажмите и выберите ячейку')}
                 onClick={() => {
-                  setPicked(picked === w.id ? null : w.id)
+                  setPicked(picked?.id === w.id ? null : w)
                   setTarget(null)
                 }}>
                 <span className="grip" aria-hidden="true">⠿</span>

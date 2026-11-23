@@ -1,4 +1,9 @@
 export const english = {
+  "Рабочий стол удалён": "Desktop deleted",
+  "Шаблон удалён": "Template deleted",
+  "Загрузить актуальные данные": "Load current data",
+  "Шаблон изменился на другом устройстве. Черновик сохранён в редакторе.": "The template changed on another device. Your draft is still in the editor.",
+  "Сохранить как новый шаблон": "Save as a new template",
   "Название виджета": "Widget name",
   "Декоративная полоса": "Divider",
   "Направление полосы": "Divider orientation",

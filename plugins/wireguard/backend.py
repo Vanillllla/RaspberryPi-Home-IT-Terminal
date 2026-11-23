@@ -74,6 +74,7 @@ def add_profile(widget_id, name, body):
         profile_id = secrets.token_hex(5)
         conn.execute("INSERT INTO private_profiles.wireguard_profiles VALUES (?, ?, ?, ?, ?)",
                      (profile_id, widget_id, name, target, config))
+        conn.changed("plugin", widget_id, plugin="wireguard")
     return {"id": profile_id}
 
 
@@ -124,20 +125,33 @@ class Schedule(BaseModel):
     interval: int = Field(default=5, strict=True, ge=1, le=3600)
 
 
+class ScheduleEdit(Schedule):
+    expected: Schedule | None = None
+
+
+def read_schedule(conn, widget_id):
+    check_widget(conn, widget_id)
+    settings = conn.execute("SELECT settings FROM widgets WHERE id=?", (widget_id,)).fetchone()[0]
+    return Schedule.model_validate(json.loads(settings).get("wireguardSchedule", {}))
+
+
 @router.get("/{widget_id}/schedule", response_model=Schedule)
 def get_schedule(widget_id: int):
     with storage.database() as conn:
-        check_widget(conn, widget_id)
-        settings = conn.execute("SELECT settings FROM widgets WHERE id=?", (widget_id,)).fetchone()[0]
-        return Schedule.model_validate(json.loads(settings).get("wireguardSchedule", {}))
+        return read_schedule(conn, widget_id)
 
 
 @router.put("/{widget_id}/schedule", response_model=Schedule)
-def save_schedule(widget_id: int, schedule: Schedule):
+def save_schedule(widget_id: int, body: ScheduleEdit):
     with storage.database(write=True) as conn:
-        check_widget(conn, widget_id)
+        current = read_schedule(conn, widget_id)
+        if body.expected is not None:
+            storage.check_expected(current.model_dump(), body.expected.model_dump())
+        schedule = Schedule(automatic=body.automatic, interval=body.interval)
         conn.execute("UPDATE widgets SET settings=json_set(settings, '$.wireguardSchedule', json(?)) WHERE id=?",
                      (schedule.model_dump_json(), widget_id))
+        conn.changed("widgets", widget_id)
+        conn.changed("plugin", widget_id, plugin="wireguard")
     return schedule
 
 
@@ -166,6 +180,7 @@ def connection(widget_id: int, profile_id: str, action: str):
     with storage.database(write=True) as conn:
         row = selected(conn, widget_id, profile_id)
         control(row, action)
+        conn.changed("plugin", widget_id, plugin="wireguard")
 
 
 def disconnect_if_present(row):
@@ -183,6 +198,7 @@ def remove(widget_id: int, profile_id: str):
         row = selected(conn, widget_id, profile_id)
         disconnect_if_present(row)
         conn.execute("DELETE FROM private_profiles.wireguard_profiles WHERE id=?", (profile_id,))
+        conn.changed("plugin", widget_id, plugin="wireguard")
 
 
 def before_widget_delete(conn, widget_id):

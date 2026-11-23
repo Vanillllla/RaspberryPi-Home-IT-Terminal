@@ -246,6 +246,7 @@ def save(body, template_id=None, creation_key=None):
             existing = conn.execute("SELECT definition FROM templates WHERE id=?", (template_id,)).fetchone()
             if existing is None:
                 conn.execute("INSERT INTO templates VALUES (?, ?)", (template_id, body.model_dump_json()))
+                conn.changed("templates", template_id)
             elif Definition.model_validate_json(existing["definition"]) != body:
                 raise HTTPException(409, tr("Шаблон уже сохранён. Откройте его для редактирования.", "The template has already been saved. Open it to edit it."))
         else:
@@ -258,6 +259,7 @@ def save(body, template_id=None, creation_key=None):
                     return {"id": template_id, **body.model_dump()}
                 raise HTTPException(409, tr("Версия шаблона изменилась. Откройте его заново.", "The template version has changed. Reopen it."))
             conn.execute("UPDATE templates SET definition=? WHERE id=?", (body.model_dump_json(), template_id))
+            conn.changed("templates", template_id)
             if previous.actions == body.actions and previous.runtime_elements() == body.runtime_elements():
                 return {"id": template_id, **body.model_dump()}
             # Revalidate saved controls against the edited ranges. Outputs belong to the old bindings.
@@ -302,6 +304,7 @@ def delete_template(template_id: str, revision: int | None = None):
             raise HTTPException(409, tr("Версия шаблона изменилась. Откройте его заново.", "The template version has changed. Reopen it."))
         conn.execute("DELETE FROM templates WHERE id=?", (template_id,))
         conn.execute("INSERT INTO deleted_templates VALUES (?, ?)", (template_id, row["revision"]))
+        conn.changed("templates", template_id)
     return {"id": template_id}
 
 
@@ -369,8 +372,10 @@ def save_inputs(widget_id: int, body: Invocation):
         values = inputs(definition, {**saved, **body.inputs})
         if any(k not in values or values[k] != v for k, v in body.inputs.items()):
             raise HTTPException(422, tr("Недопустимое значение элемента", "Invalid element value"))
-        conn.execute("UPDATE widgets SET settings=json_set(settings,'$.inputs',json(?)) WHERE id=?",
-                     (json.dumps(values), widget_id))
+        if values != saved:
+            conn.execute("UPDATE widgets SET settings=json_set(settings,'$.inputs',json(?)) WHERE id=?",
+                         (json.dumps(values), widget_id))
+            conn.changed("widgets", widget_id)
     return values
 
 
@@ -421,8 +426,11 @@ def run_action(widget_id: int, action_id: str, body: Invocation):
             with database(write=True) as conn:
                 row, _ = load_instance(conn, widget_id, body.revision)
                 saved = json.loads(row["settings"]).get("outputs", {})
-                conn.execute("UPDATE widgets SET settings=json_set(settings,'$.outputs',json(?)) WHERE id=?",
-                             (json.dumps({**saved, **outputs}), widget_id))
+                updated = {**saved, **outputs}
+                if updated != saved:
+                    conn.execute("UPDATE widgets SET settings=json_set(settings,'$.outputs',json(?)) WHERE id=?",
+                                 (json.dumps(updated), widget_id))
+                    conn.changed("widgets", widget_id)
         return {"outputs": outputs, "diagnostic": diagnostic, "commands": commands}
     except ValueError as exc:
         raise HTTPException(422, str(exc)) from exc

@@ -2,13 +2,16 @@ import { useTranslation } from './i18n'
 import { useRef, useState } from 'react'
 import { cardAppearance, palettes, type Palette } from './appearance'
 import { PluginView } from './PluginView'
+import { ApiError } from './api'
 import type { WidgetInstance } from './plugin'
 
 export interface Configuration {
-  width: number
-  height: number
-  appearance: ReturnType<typeof cardAppearance>
+  width?: number
+  height?: number
+  appearance: Partial<ReturnType<typeof cardAppearance>>
   settings?: WidgetInstance['settings']
+  removeSettings?: string[]
+  expected: Record<string, unknown>
 }
 
 function PalettePicker({ label, name, value, change }: {
@@ -26,20 +29,70 @@ function PalettePicker({ label, name, value, change }: {
   </fieldset>
 }
 
-export function InstanceSettings({ widget, defaultTitle, pluginSettings, busy, save }: {
+export function InstanceSettings({ widget, defaultTitle, pluginSettings, busy, save, refresh }: {
   widget: WidgetInstance; defaultTitle: string; pluginSettings: boolean; busy: boolean; save: (draft: Configuration) => Promise<void>
+  refresh: () => Promise<WidgetInstance | undefined>
 }) {
   const { t } = useTranslation()
   const [width, setWidth] = useState(String(widget.width))
   const [height, setHeight] = useState(String(widget.height))
   const [appearance, setAppearance] = useState(() => cardAppearance(widget.appearance))
   const [error, setError] = useState('')
+  const [base, setBase] = useState(widget)
+  const [generation, setGeneration] = useState(0)
+  const [conflict, setConflict] = useState(false)
   const common = useRef<HTMLFormElement>(null)
   const plugin = useRef<HTMLDivElement>(null)
 
   async function persist(settings?: WidgetInstance['settings']) {
     if (!common.current?.reportValidity()) throw new Error(t('Проверьте размер карточки'))
-    await save({ width: Number(width), height: Number(height), appearance, settings })
+    const expectedAppearance: Record<string, unknown> = {}
+    const expectedSettings: Record<string, unknown> = {}
+    const original = cardAppearance(base.appearance)
+    const appearancePatch: Record<string, unknown> = {}
+    const settingsPatch: Record<string, unknown> = {}
+    const removeSettings: string[] = []
+    for (const key of Object.keys(original) as (keyof typeof original)[]) {
+      if (original[key] === appearance[key]) continue
+      appearancePatch[key] = appearance[key]
+      expectedAppearance[key] = base.appearance[key] ?? null
+    }
+    if (settings) {
+      for (const key of new Set([...Object.keys(base.settings), ...Object.keys(settings)])) {
+        if (JSON.stringify(settings[key]) === JSON.stringify(base.settings[key])) continue
+        if (Object.hasOwn(settings, key)) settingsPatch[key] = settings[key]
+        else removeSettings.push(key)
+        expectedSettings[key] = base.settings[key] ?? null
+      }
+    }
+    const draft: Configuration = {
+      appearance: appearancePatch,
+      settings: Object.keys(expectedSettings).length ? settingsPatch : undefined,
+      removeSettings,
+      expected: { appearance: expectedAppearance, settings: expectedSettings },
+    }
+    if (Number(width) !== base.width) { draft.width = Number(width); draft.expected.width = base.width }
+    if (Number(height) !== base.height) { draft.height = Number(height); draft.expected.height = base.height }
+    try {
+      await save(draft)
+    } catch (e) {
+      setConflict(e instanceof ApiError && e.status === 409)
+      throw e
+    }
+  }
+
+  async function reloadDraft() {
+    try {
+      const latest = await refresh()
+      if (!latest) return
+      setBase(latest)
+      setWidth(String(latest.width))
+      setHeight(String(latest.height))
+      setAppearance(cardAppearance(latest.appearance))
+      setGeneration(value => value + 1)
+      setError('')
+      setConflict(false)
+    } catch (e) { setError(String(e)) }
   }
 
   return <div className="card-settings" onChange={() => setError('')}>
@@ -82,10 +135,12 @@ export function InstanceSettings({ widget, defaultTitle, pluginSettings, busy, s
     </form>
     {pluginSettings && <div ref={plugin} className="plugin-settings">
       <h3>{t('Настройки плагина')}</h3>
-      <PluginView instance={widget} mode="Settings" saveSettings={persist} />
+      <PluginView key={generation} instance={base} mode="Settings" saveSettings={persist} />
     </div>}
     {error && <p role="alert">{error}</p>}
-    <div className="dialog-actions"><button className="primary" type="submit" form="card-settings-form"
+    <div className="dialog-actions">
+      {conflict && <button type="button" disabled={busy} onClick={() => void reloadDraft()}>{t('Загрузить актуальные данные')}</button>}
+      <button className="primary" type="submit" form="card-settings-form"
       disabled={busy}>{t('Сохранить')}</button></div>
   </div>
 }

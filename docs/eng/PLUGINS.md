@@ -74,3 +74,9 @@ The catalog also reads saved definitions from SQLite. Each template has an ID su
 `POST /api/templates` creates a definition; `PUT /api/templates/{id}` updates it using the original revision. `POST /api/widgets/{id}/actions/{action_id}` invokes a saved action definition and validates the instance revision.
 
 Text and indicator elements receive action results on commands or timers. Unbound elements display initial values. Commands are matched exactly to action `command` fields; actions target element IDs and optionally select a nested field of the result. Consult the [update modes and JSON examples](WIDGET_AUTHORING.md#update-modes) in the [template authoring guide](WIDGET_AUTHORING.md).
+
+## Synchronizing plugin data
+
+Record a notification in the same database transaction as the change. Call `conn.changed("plugin", widget_id, plugin="your-plugin-id")` on a connection from `backend.storage.database(write=True)`. If the operation changes `widgets.settings`, also call `conn.changed("widgets", widget_id)`. The database context publishes the revision after commit. Include identifiers only. Keep credentials on the server and fetch public profile data through the existing REST endpoints.
+
+In React, import `onSharedChange` from `@terminal/plugin`. Subscribe inside an effect with `onSharedChange({ kind: 'plugin', plugin: 'your-plugin-id', id: instance.id }, refresh)` and return the unsubscribe callback. Use the notification to refresh saved data. Keep unsaved form inputs separate and check the version used to open the form before saving a replacement.

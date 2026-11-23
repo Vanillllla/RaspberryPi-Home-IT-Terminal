@@ -52,6 +52,7 @@ class LayoutTest(unittest.TestCase):
         self.assertEqual(error.exception.status_code, 409)
         self.assertEqual(state(), before)
         other = create_desktop()
+        before["revision"] += 2
         self.assertEqual(delete_desktop(other["id"]), before)
 
     def test_rename_updates_only_the_selected_name(self):
@@ -63,6 +64,7 @@ class LayoutTest(unittest.TestCase):
         self.assertEqual(state(), expected)
         rename_desktop(1, DesktopName(name="  Серверная  "))
         expected["desktops"][0]["name"] = "Серверная"
+        expected["revision"] += 1
         self.assertEqual(state(), expected)
 
     def test_desktop_order_survives_restart_and_changes_to_the_list(self):
@@ -87,6 +89,7 @@ class LayoutTest(unittest.TestCase):
         expected = state()
         align_content(1, ContentAlignment(horizontalAlign="right", verticalAlign="top"))
         expected["widgets"][0]["appearance"].update(horizontalAlign="right", verticalAlign="top")
+        expected["revision"] += 1
         self.assertEqual(state(), expected)
 
     def test_full_rectangle_and_atomic_rejection(self):

@@ -16,7 +16,7 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
 from backend.i18n import tr
-from backend.storage import attach_private_profiles, database, private_directory
+from backend.storage import attach_private_profiles, check_expected, database, private_directory
 
 router = APIRouter()
 workers = ThreadPoolExecutor(max_workers=4)
@@ -232,6 +232,7 @@ class Schedule(BaseModel):
 class ProfileSettings(BaseModel):
     profiles: list[ProfileEdit]
     schedule: Schedule
+    revision: int | None = Field(default=None, ge=0)
 
 
 def load_schedule(conn, widget_id):
@@ -240,10 +241,16 @@ def load_schedule(conn, widget_id):
     return Schedule.model_validate(value) if value is not None else Schedule()
 
 
+def profile_revision(conn, widget_id):
+    return conn.execute("SELECT COALESCE(json_extract(settings, '$.singBoxProfilesRevision'), 0) FROM widgets WHERE id=?",
+                        (widget_id,)).fetchone()[0]
+
+
 @router.get("/{widget_id}/profiles")
 def profiles(widget_id: int):
     with database(write=True) as conn:
-        return {"profiles": public_profiles(load_profiles(conn, widget_id)), "schedule": load_schedule(conn, widget_id)}
+        return {"profiles": public_profiles(load_profiles(conn, widget_id)), "schedule": load_schedule(conn, widget_id),
+                "revision": profile_revision(conn, widget_id)}
 
 
 @router.put("/{widget_id}/profiles")
@@ -271,6 +278,9 @@ def save_profiles(widget_id: int, body: ProfileSettings):
 
     with database(write=True) as conn:
         existing = {p["id"]: p for p in load_profiles(conn, widget_id)}
+        revision = profile_revision(conn, widget_id)
+        if body.revision is not None:
+            check_expected({"revision": revision}, {"revision": body.revision})
         saved = []
         for edit, name, config in prepared:
             if config is not None:
@@ -282,9 +292,11 @@ def save_profiles(widget_id: int, body: ProfileSettings):
                 raise HTTPException(409, tr("Выберите JSON или вставьте ссылку", "Choose JSON or paste a link"))
         conn.execute("INSERT OR REPLACE INTO private_profiles.sing_box_profiles VALUES (?, ?)",
                      (widget_id, json.dumps(saved)))
-        conn.execute("UPDATE widgets SET settings=json_set(settings, '$.singBoxSchedule', json(?)) WHERE id=?",
-                     (body.schedule.model_dump_json(), widget_id))
-    return {"profiles": public_profiles(saved), "schedule": body.schedule}
+        conn.execute("""UPDATE widgets SET settings=json_set(settings, '$.singBoxSchedule', json(?),
+            '$.singBoxProfilesRevision', ?) WHERE id=?""", (body.schedule.model_dump_json(), revision + 1, widget_id))
+        conn.changed("widgets", widget_id)
+        conn.changed("plugin", widget_id, plugin="sing-box-latency")
+    return {"profiles": public_profiles(saved), "schedule": body.schedule, "revision": revision + 1}
 
 
 @router.get("/{widget_id}/latency")

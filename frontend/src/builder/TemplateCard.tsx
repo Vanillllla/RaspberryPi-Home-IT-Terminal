@@ -1,5 +1,5 @@
 import { useTranslation } from '../i18n'
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { memo, useCallback, useEffect, useRef, useState } from 'react'
 import { api } from '../api'
 import { WidgetSlider, WidgetSwitch, type WidgetInstance } from '../plugin'
 import { ElementLayout } from './ElementLayout'
@@ -81,15 +81,19 @@ export function ElementView({ item, inputs = {}, outputs = {}, change }: Element
 interface RunResult { outputs?: Outputs; diagnostic?: string; commands?: string[]; skipped?: boolean }
 interface Props {
   template: Template; instance: WidgetInstance; active: boolean
-  patch: (id: number, revision: number, group: 'inputs' | 'outputs', data: Inputs | Outputs) => void
+  reload: () => Promise<unknown>
   resetTimers: Map<string, number>
   inputWrites: Map<number, Promise<void>>
 }
 
-export function TemplateCard({ template, instance, active, patch, resetTimers, inputWrites }: Props) {
+export const TemplateCard = memo(function TemplateCard({ template, instance, active, reload, resetTimers, inputWrites }: Props) {
   const { t } = useTranslation()
-  const inputs = (instance.settings.inputs ?? {}) as Inputs
-  const outputs = (instance.settings.outputs ?? {}) as Outputs
+  const [draftInputs, setDraftInputs] = useState<Record<string, { value: InputValue }>>({})
+  const savedInputs = useRef(new Map<string, { value: InputValue }>())
+  const [timerOutputs, setTimerOutputs] = useState<Outputs>({})
+  const inputs = { ...(instance.settings.inputs as Inputs | undefined),
+    ...Object.fromEntries(Object.entries(draftInputs).map(([id, edit]) => [id, edit.value])) }
+  const outputs = { ...(instance.settings.outputs as Outputs | undefined), ...timerOutputs }
   const latest = useRef({ inputs, outputs })
   latest.current = { inputs, outputs }
   const [messages, setMessages] = useState<Record<string, string>>({})
@@ -100,18 +104,29 @@ export function TemplateCard({ template, instance, active, patch, resetTimers, i
 
   const saveInput = useCallback((id: string, value: InputValue) => {
     const update = { [id]: value }
+    const edit = { value }
     latest.current.inputs = { ...latest.current.inputs, ...update }
-    patch(instance.id, revision, 'inputs', update)
+    setDraftInputs(old => ({ ...old, [id]: edit }))
     const previous = inputWrites.get(instance.id) ?? Promise.resolve()
     const write = previous.then(async () => {
       await api(base + '/inputs', 'PUT', { revision, inputs: update })
+      savedInputs.current.set(id, edit)
       setMessages(old => ({ ...old, inputs: '' }))
     }).catch(e => setMessages(old => ({ ...old, inputs: e.message })))
     inputWrites.set(instance.id, write)
     void write.finally(() => {
-      if (inputWrites.get(instance.id) === write) inputWrites.delete(instance.id)
+      if (inputWrites.get(instance.id) !== write) return
+      inputWrites.delete(instance.id)
+      const acknowledged = new Map(savedInputs.current)
+      if (!acknowledged.size) return
+      void reload().then(() => {
+        setDraftInputs(old => Object.fromEntries(Object.entries(old).filter(([key, value]) => acknowledged.get(key) !== value)))
+        for (const [key, edit] of acknowledged) {
+          if (savedInputs.current.get(key) === edit) savedInputs.current.delete(key)
+        }
+      }).catch(() => {})
     })
-  }, [base, inputWrites, instance.id, patch, revision])
+  }, [base, inputWrites, instance.id, reload, revision])
 
   const dispatch = useCallback((command: string, fromScript = false) => {
     const listeners = template.actions.filter(a => a.trigger === 'command' && a.command === command
@@ -143,6 +158,7 @@ export function TemplateCard({ template, instance, active, patch, resetTimers, i
     if (timer) pendingTimers.current.add(root.id)
     const state = { ...captured }
     let count = 0
+    let persisted = false
     let current = root
     async function step(action: Action, parents: string[]) {
       current = action
@@ -152,7 +168,8 @@ export function TemplateCard({ template, instance, active, patch, resetTimers, i
       if (result.skipped) return
       if (result.outputs) {
         state.outputs = { ...state.outputs, ...result.outputs }
-        patch(instance.id, revision, 'outputs', result.outputs)
+        if (action.trigger === 'timer') setTimerOutputs(old => ({ ...old, ...result.outputs }))
+        else persisted = true
       }
       setMessages(old => ({ ...old, [action.id]: result.diagnostic ?? '' }))
       for (const command of result.commands ?? []) {
@@ -167,8 +184,9 @@ export function TemplateCard({ template, instance, active, patch, resetTimers, i
       setMessages(old => ({ ...old, [id]: e instanceof Error ? e.message : t('Ошибка действия') }))
     } finally {
       if (timer) pendingTimers.current.delete(root.id)
+      if (persisted) void reload().catch(() => {})
     }
-  }, [base, instance.id, revision, patch, dispatch, t])
+  }, [base, revision, reload, dispatch, t])
 
   useEffect(() => {
     if (!active) return
@@ -223,4 +241,4 @@ export function TemplateCard({ template, instance, active, patch, resetTimers, i
       return <p className="action-message" role="status" key={id}><b>{action ? actionName(action, t) : t('Сохранение')}</b> · {message}</p>
     })}
   </div>
-}
+})

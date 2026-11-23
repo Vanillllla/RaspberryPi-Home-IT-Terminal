@@ -25,3 +25,5 @@ export interface Plugin {
 
 export { WidgetSlider, WidgetSwitch } from './WidgetControls'
 export { useTranslation } from './i18n'
+
+export { onSharedChange } from './sync'

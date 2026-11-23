@@ -4,6 +4,11 @@ import sqlite3
 from contextlib import contextmanager
 from pathlib import Path
 
+from fastapi import HTTPException
+
+from .events import HISTORY, notify_committed
+from .i18n import tr
+
 DB_PATH = Path(os.environ.get("TERMINAL_DB", Path(__file__).parent / "data/terminal.sqlite3"))
 
 
@@ -23,15 +28,48 @@ def attach_private_profiles(conn):
     conn.execute("PRAGMA private_profiles.secure_delete = ON")
 
 
+class Connection(sqlite3.Connection):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.changes = {}
+
+    def changed(self, kind, item_id=None, *, plugin=None):
+        """Record an invalidation in the current write transaction."""
+        change = {"kind": kind}
+        if item_id is not None:
+            change["id"] = item_id
+        if plugin is not None:
+            change["plugin"] = plugin
+        self.changes[(kind, item_id, plugin)] = change
+
+
+def state_revision(conn):
+    committed = conn.execute("SELECT COALESCE(MAX(revision), 0) FROM state_events").fetchone()[0]
+    return committed + bool(conn.changes)
+
+
+def check_expected(current, expected):
+    if any(current.get(key) != value for key, value in expected.items()):
+        raise HTTPException(409, tr("Эти данные изменились на другом устройстве. Загрузите актуальные данные и повторите правки.",
+                                    "This data changed on another device. Load the current data and reapply your edits."))
+
+
 @contextmanager
 def database(*, write=False):
-    conn = sqlite3.connect(DB_PATH, timeout=10)
+    conn = sqlite3.connect(DB_PATH, timeout=10, factory=Connection)
     conn.row_factory = sqlite3.Row
     try:
         conn.execute("PRAGMA foreign_keys = ON")
         conn.execute("BEGIN IMMEDIATE" if write else "BEGIN")
         yield conn
+        if conn.changes:
+            assert write, "State changes require database(write=True)"
+            revision = conn.execute("INSERT INTO state_events(changes) VALUES (?) RETURNING revision",
+                                    (json.dumps(list(conn.changes.values())),)).fetchone()[0]
+            conn.execute("DELETE FROM state_events WHERE revision <= ?", (revision - HISTORY,))
         conn.commit()
+        if conn.changes:
+            notify_committed()
     finally:
         conn.close()
 
@@ -39,6 +77,7 @@ def database(*, write=False):
 def initialize():
     DB_PATH.parent.mkdir(parents=True, exist_ok=True)
     with database(write=True) as conn:
+        conn.execute("CREATE TABLE IF NOT EXISTS state_events (revision INTEGER PRIMARY KEY, changes TEXT NOT NULL)")
         conn.execute("CREATE TABLE IF NOT EXISTS integrations (id TEXT PRIMARY KEY, definition TEXT NOT NULL)")
         conn.execute("CREATE TABLE IF NOT EXISTS templates (id TEXT PRIMARY KEY, definition TEXT NOT NULL)")
         conn.execute("CREATE TABLE IF NOT EXISTS deleted_templates (id TEXT PRIMARY KEY, revision INTEGER NOT NULL)")

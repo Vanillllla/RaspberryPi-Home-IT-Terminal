@@ -74,6 +74,7 @@ def import_file(path, content, *, automatic=False):
             raise TemplateConflict(tr(f"Шаблон с ID {package.id} уже есть в каталоге", f"A template with ID {package.id} already exists in the catalog"))
         if deleted:
             conn.execute("DELETE FROM deleted_templates WHERE id=?", (package.id,))
+        conn.changed("templates", package.id)
     return package.model_dump()
 
 

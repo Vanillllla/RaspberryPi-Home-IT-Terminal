@@ -61,6 +61,14 @@ Open `http://localhost:5173` in a browser **on the same device**, or from a Wind
 
 Stop either running process with Ctrl+C.
 
+## Synchronization between devices
+
+Open the same dashboard server on each device. Changes to desktops, widgets, templates, integrations, and supported plugin profiles appear automatically. Each browser keeps its own active desktop, theme, language, and open dialogs. When two clients edit the same field, the editor keeps the draft and offers to load the current value.
+
+The Vite development proxy forwards both REST and `/api/events` (WebSocket) to FastAPI. Use a single FastAPI process. A trusted-network reverse proxy must also forward WebSocket upgrades for `/api/events`. The browser reconnects automatically and refreshes saved state after a connection loss. Browser timers and transient plugin state remain local.
+
+For automated backend tests, install `.venv/bin/python -m pip install -r backend/requirements-test.txt` before running the test suite.
+
 ## Subsequent launches
 
 Open two Linux terminals in the existing repository checkout. No reinstall is necessary unless dependencies have changed.
@@ -143,6 +151,14 @@ npm --prefix ./frontend run dev
 Откройте `http://localhost:5173` в браузере **на том же устройстве** либо в браузере Windows при стандартном пробросе localhost из WSL2. Проверьте `http://localhost:5173/api/state`: запрос должен пройти через прокси Vite в FastAPI. По умолчанию оба сервиса слушают только loopback — для доступа из LAN нужна отдельная настройка безопасного проброса или прокси в доверенной сети. На Raspberry Pi OS откройте страницу в Chromium; **автозапуск киоска в репозитории пока не настроен**.
 
 Для остановки каждого процесса нажмите Ctrl+C.
+
+## Синхронизация между устройствами
+
+Откройте панель одного и того же сервера на каждом устройстве. Рабочие столы, виджеты, шаблоны, интеграции и профили поддерживаемых плагинов обновляются автоматически. Активный стол, тема, язык и открытые окна остаются локальными. Если два клиента правят одно и то же поле, редактор сохраняет черновик и предлагает загрузить актуальные данные.
+
+Vite проксирует REST-запросы и WebSocket `/api/events` в FastAPI. Запускайте один процесс FastAPI. Обратный прокси в доверенной сети также должен поддерживать обновление соединения до WebSocket на `/api/events`. При разрыве браузер автоматически переподключается и запрашивает сохранённое состояние. Таймеры в браузере и временное состояние плагинов остаются локальными.
+
+Перед запуском автоматических тестов backend установите зависимости командой `.venv/bin/python -m pip install -r backend/requirements-test.txt`.
 
 ## Последующие запуски
 

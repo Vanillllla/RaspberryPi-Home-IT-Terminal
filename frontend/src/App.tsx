@@ -1,12 +1,11 @@
 import { desktopName, pluginText, useTranslation } from './i18n'
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
-import { api, type Desktop, type State } from './api'
+import { api, type Desktop } from './api'
+import { useSharedState } from './sync'
 import { Builder } from './builder/Builder'
 import { TemplateCard } from './builder/TemplateCard'
-import type { Inputs, Outputs } from './builder/model'
 import { DesktopNavigation } from './DesktopNavigation'
 import { DesktopPager } from './DesktopPager'
-import { placementError } from './layout'
 import { cardAppearance } from './appearance'
 import { InstanceSettings } from './InstanceSettings'
 import { Grid } from './Grid'
@@ -29,16 +28,17 @@ const themeKey = 'pi-terminal-theme'
 
 type Panel =
   | { mode: 'desktops' | 'reorder-desktops' | 'add' | 'panel-settings' | 'builder' }
-  | { mode: 'rename-desktop'; selected: number; name: string }
+  | { mode: 'rename-desktop'; selected: number; name: string; expected: string }
   | { mode: 'delete-desktop'; selected: number | null }
   | { mode: 'actions' | 'Settings' | 'Details'; id: number }
 
 export function App() {
   const { t, language, chooseLanguage } = useTranslation()
-  const [data, setData] = useState<State | null>(null)
+  const { data, reload } = useSharedState()
   const [active, setActive] = useState(() => Number(sessionStorage.getItem('desktop')))
   const [panel, setPanel] = useState<Panel | null>(null)
   const [error, setError] = useState('')
+  const [initialError, setInitialError] = useState('')
   const [cellSize, setCellSize] = useState(80)
   const [rows, setRows] = useState(1)
   const [transfer, setTransfer] = useState<{ id: number; desktop_id: number; slot: number } | null>(null)
@@ -63,28 +63,14 @@ export function App() {
   }
 
   const lock = useRef(false)
-  const reload = useCallback(async () => setData(await api<State>('state')), [])
-  useEffect(() => { reload().catch(e => setError(e.message)) }, [reload])
+  useEffect(() => { reload().catch(e => setInitialError(e.message)) }, [reload])
   const desktop = data?.desktops.find(d => d.id === active) ?? data?.desktops[0]
 
-  const catalogVersion = data?.templates.map(t => t.id + ':' + t.revision).sort().join('\n')
   useEffect(() => {
-    if (catalogVersion === undefined || panel?.mode === 'builder') return
-    let disposed = false
-    let checking = false
-    async function check() {
-      if (document.hidden || checking) return
-      checking = true
-      try {
-        const version = await api<string[]>('templates/version')
-        if (!disposed && version.join('\n') !== catalogVersion) await reload()
-      } catch { /* Retry on the next tick when the server is available again. */ }
-      finally { checking = false }
-    }
-    const timer = window.setInterval(check, 5000)
-    document.addEventListener('visibilitychange', check)
-    return () => { disposed = true; clearInterval(timer); document.removeEventListener('visibilitychange', check) }
-  }, [catalogVersion, panel?.mode, reload])
+    if (!data || !desktop) return
+    if (!data.desktops.some(d => d.id === active)) select(desktop.id)
+    if (panel && 'id' in panel && !data.widgets.some(w => w.id === panel.id)) setPanel(null)
+  }, [active, data, desktop, panel])
 
   const drawerOpen = panel?.mode === 'desktops'
   const setDrawerOpen = useCallback((open: boolean) => {
@@ -135,8 +121,9 @@ export function App() {
     })
   }
 
-  function moveWidget(id: number, slot: number, rows: number, destination: number) {
+  function moveWidget(widget: WidgetInstance, slot: number, rows: number, destination: number) {
     return runMutation(async () => {
+      const { id, desktop_id, width, height, slot: originalSlot } = widget
       const placement = { id, slot, desktop_id: destination }
       const crossing = desktop?.id !== destination
       if (crossing) {
@@ -144,10 +131,8 @@ export function App() {
         select(destination)
       }
       try {
-        await api('widgets/' + id + '/position', 'PUT', { slot, rows, desktop_id: destination })
-        if (crossing) {
-          setData(current => current && { ...current, widgets: current.widgets.map(w => w.id === id ? { ...w, ...placement } : w) })
-        }
+        await api('widgets/' + id + '/position', 'PUT', { slot, rows, desktop_id: destination,
+          expected: { desktop_id, slot: originalSlot, width, height } })
         await reload()
       } finally {
         setTransfer(null)
@@ -157,12 +142,12 @@ export function App() {
 
   function removeDesktop(id: number) {
     return runMutation(async () => {
-      const next = await api<State>('desktops/' + id, 'DELETE')
+      await api('desktops/' + id, 'DELETE')
+      const next = await reload()
       const current = next.desktops.find(d => d.id === desktop?.id)
       const index = data?.desktops.findIndex(d => d.id === id) ?? 0
       const neighbor = next.desktops[index] ?? next.desktops[next.desktops.length - 1]
       select((current ?? neighbor).id)
-      setData(next)
       setPanel(null)
     })
   }
@@ -176,15 +161,6 @@ export function App() {
     }} />
   }
 
-  const patchRuntime = useCallback((id: number, revision: number, group: 'inputs' | 'outputs', values: Inputs | Outputs) => {
-    setData(current => {
-      const widget = current?.widgets.find(w => w.id === id)
-      if (!current || !widget || !current.templates.some(t => t.id === widget.plugin_id && t.revision === revision)) return current
-      const settings = { ...widget.settings, [group]: { ...(widget.settings[group] as object), ...values } }
-      return { ...current, widgets: current.widgets.map(w => w.id === id ? { ...w, settings } : w) }
-    })
-  }, [])
-
   function renderCard(widget: WidgetInstance) {
     const capabilities = data?.plugins.find(p => p.id === widget.plugin_id)?.capabilities ?? []
     const template = data?.templates.find(t => t.id === widget.plugin_id)
@@ -192,7 +168,7 @@ export function App() {
     return <div className="widget-content" data-horizontal={alignment.horizontalAlign} data-vertical={alignment.verticalAlign}>
       {template ? <TemplateCard key={template.revision} template={template} instance={widget}
         resetTimers={resetTimers} inputWrites={inputWrites}
-        active={desktop?.id === widget.desktop_id && panel?.mode !== 'builder'} patch={patchRuntime} /> : view(widget, 'Widget')}
+        active={desktop?.id === widget.desktop_id && panel?.mode !== 'builder'} reload={reload} /> : view(widget, 'Widget')}
       {capabilities.includes('details') && <button onClick={() => setPanel({ mode: 'Details', id: widget.id })}>
         {t('Подробнее')}
       </button>}
@@ -214,10 +190,10 @@ export function App() {
             setOpen={setDrawerOpen} select={select} error={error}
             create={() => void runMutation(async () => {
               const next = await api<Desktop>('desktops', 'POST')
-              setData(current => current && { ...current, desktops: [...current.desktops, next] })
+              await reload()
               select(next.id)
             })}
-            rename={() => { setError(''); setPanel({ mode: 'rename-desktop', selected: desktop.id, name: desktopName(desktop, t) }) }}
+            rename={() => { setError(''); setPanel({ mode: 'rename-desktop', selected: desktop.id, name: desktopName(desktop, t), expected: desktop.name }) }}
             reorder={() => { setError(''); select(desktop.id); setPanel({ mode: 'reorder-desktops' }) }}
             remove={() => { setError(''); setPanel({ mode: 'delete-desktop', selected: null }) }} />
           <button className="nav-action" inert={drawerOpen} aria-label={t('Настройки панели')} title={t('Настройки панели')} aria-haspopup="dialog"
@@ -242,7 +218,9 @@ export function App() {
               move={moveWidget}
               render={renderCard} />
           )} />
-      </> : !error && <p>{t('Загрузка рабочего стола…')}</p>}
+      </> : initialError
+        ? <p role="alert">{initialError} <button onClick={() => void mutate(async () => {})}>{t('Обновить')}</button></p>
+        : <p>{t('Загрузка рабочего стола…')}</p>}
     </main>
     {panel?.mode === 'reorder-desktops' && data && <Modal title={t('Порядок рабочих столов')} pending={busy}
       close={() => setDrawerOpen(true)}>
@@ -256,7 +234,7 @@ export function App() {
               onClick={() => {
                 if (busy || !neighbor) return
                 const [first, second] = offset < 0 ? [neighbor.id, d.id] : [d.id, neighbor.id]
-                void runMutation(async () => setData(await api<State>('desktops/swap', 'POST', { first, second })))
+                void mutate(() => api('desktops/swap', 'POST', { first, second }))
               }}>{offset < 0 ? '↑' : '↓'}</button>
           })}
         </li>)}
@@ -268,20 +246,22 @@ export function App() {
       <form className="rename-desktop" onSubmit={e => {
         e.preventDefault()
         const name = panel.name.trim()
+        if (!data.desktops.some(d => d.id === panel.selected)) return
         if (!name) { setError(t('Введите название рабочего стола')); return }
         void runMutation(async () => {
-          const updated = await api<Pick<Desktop, 'id' | 'name'>>('desktops/' + panel.selected + '/name', 'PUT', { name })
-          setData(current => current && { ...current, desktops: current.desktops.map(d => d.id === updated.id ? { ...d, ...updated } : d) })
+          await api('desktops/' + panel.selected + '/name', 'PUT', { name, expected: panel.expected })
+          await reload()
           setDrawerOpen(true)
         })
       }}>
         <div className="rename-field">
           <label htmlFor="rename-target">{t('Рабочий стол')}</label>
-          <select id="rename-target" disabled={busy} value={panel.selected} onChange={e => {
+          <select id="rename-target" disabled={busy} value={data.desktops.some(d => d.id === panel.selected) ? panel.selected : ''} onChange={e => {
             const selected = data.desktops.find(d => d.id === Number(e.target.value))!
             setError('')
-            setPanel({ mode: 'rename-desktop', selected: selected.id, name: desktopName(selected, t) })
+            setPanel({ mode: 'rename-desktop', selected: selected.id, name: desktopName(selected, t), expected: selected.name })
           }}>
+            {!data.desktops.some(d => d.id === panel.selected) && <option value="" disabled>{t('Рабочий стол удалён')}</option>}
             {data.desktops.map(d => <option key={d.id} value={d.id}>{desktopName(d, t)}</option>)}
           </select>
         </div>
@@ -290,8 +270,13 @@ export function App() {
         </label>
         {error && <p role="alert">{error}</p>}
         <div className="dialog-actions">
+          {error && data.desktops.some(d => d.id === panel.selected) && <button type="button" disabled={busy}
+            onClick={() => void runMutation(async () => {
+              const next = (await reload()).desktops.find(d => d.id === panel.selected)
+              if (next) setPanel({ ...panel, name: desktopName(next, t), expected: next.name })
+            })}>{t('Загрузить актуальные данные')}</button>}
           <button type="button" disabled={busy} onClick={() => setDrawerOpen(true)}>{t('Отмена')}</button>
-          <button className="primary" disabled={busy}>{t('Сохранить')}</button>
+          <button className="primary" disabled={busy || !data.desktops.some(d => d.id === panel.selected)}>{t('Сохранить')}</button>
         </div>
       </form>
     </Modal>}
@@ -336,18 +321,11 @@ export function App() {
     </Modal>}
     {panel?.mode === 'builder' && data && <Modal title={t('Конструктор виджетов')} pending={busy} close={() => setPanel(null)}>
       <Builder cellSize={cellSize} columns={data.columns} maxRows={data.max_rows} templates={data.templates} busy={busy} setBusy={setBusy}
-        imported={template => setData(current => current && { ...current, templates: [...current.templates.filter(t => t.id !== template.id), template] })}
-        deleted={id => setData(current => current && { ...current, templates: current.templates.filter(t => t.id !== id) })}
-        saved={async template => {
-        try {
-          await reload()
-        } catch (e) {
-          // The write already succeeded. Keep the saved template available if the refresh fails.
-          setData(current => current && { ...current, templates: [...current.templates.filter(t => t.id !== template.id), template] })
-          setError(e instanceof Error ? e.message : t('Не удалось обновить рабочий стол'))
-        }
-        setPanel(null)
-      }} />
+        refresh={reload}
+        saved={async () => {
+          setPanel(null)
+          await reload().catch(() => setError(t('Не удалось обновить рабочий стол')))
+        }} />
     </Modal>}
     {panel?.mode === 'add' && data && desktop && <Modal title={t('Добавить виджет')} close={() => { setError(''); setPanel(null) }}>
       {data.plugins.length === 0 && data.templates.length === 0 && <p>{t('Доступных плагинов пока нет.')}</p>}
@@ -369,16 +347,14 @@ export function App() {
       pending={busy} close={() => setPanel(null)}>{panel.mode === 'Details' ? <div className="details-view">{view(opened, 'Details')}</div> :
         <InstanceSettings key={opened.id} widget={opened} defaultTitle={defaultTitle(opened)} busy={busy}
           pluginSettings={data.plugins.some(p => p.id === opened.plugin_id && p.capabilities.includes('settings'))}
+          refresh={async () => (await reload()).widgets.find(w => w.id === opened.id)}
           save={async draft => {
-            const reason = placementError(data.widgets.filter(w => w.desktop_id === opened.desktop_id),
-              data.columns, rows, opened.id, opened.slot % data.columns, Math.floor(opened.slot / data.columns),
-              draft.width, draft.height)
-            if (reason) throw new Error(t(reason))
             setBusy(true)
             try {
-              const updated = await api<WidgetInstance>('widgets/' + opened.id + '/configuration', 'PUT', { ...draft, rows })
-              setData(current => current && { ...current, widgets: current.widgets.map(w => w.id === updated.id
-                ? { ...updated, settings: draft.settings === undefined ? w.settings : updated.settings } : w) })
+              await api('widgets/' + opened.id + '/configuration', 'PUT', {
+                ...draft, rows: opened.desktop_id === desktop.id ? rows : undefined,
+              })
+              await reload()
               setPanel(null)
             } finally { setBusy(false) }
           }} />}</Modal>}

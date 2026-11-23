@@ -13,6 +13,9 @@ export default defineConfig({
     host: '127.0.0.1',
     strictPort: true,
     fs: { allow: [fileURLToPath(new URL('./', import.meta.url)), project + 'plugins'] },
-    proxy: { '/api': 'http://127.0.0.1:8000' },
+    proxy: {
+      '/api/events': { target: 'http://127.0.0.1:8000', ws: true },
+      '/api': 'http://127.0.0.1:8000',
+    },
   },
 })

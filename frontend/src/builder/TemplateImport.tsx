@@ -5,7 +5,7 @@ import type { Template } from './model'
 
 interface Props {
   setBusy: (busy: boolean) => void
-  imported: (template: Template) => void
+  imported: () => Promise<unknown>
   open: (id: string) => void
 }
 
@@ -32,7 +32,7 @@ export function TemplateImport({ setBusy, imported, open }: Props) {
       const query = directory ? '?' + new URLSearchParams({ path: file.webkitRelativePath }) : ''
       const content = file.slice(0, file.size, directory ? 'application/json' : 'application/zip')
       const template = await api<Template>('templates/import' + query, 'POST', content)
-      imported(template)
+      await imported()
       setResult(template)
       setChoosing(false)
     } catch (e) {

@@ -63,7 +63,7 @@ class WireGuardTest(unittest.TestCase):
         storage.initialize()
         one, two = (main.create_widget(1, main.AddWidget(plugin_id="wireguard"))["id"] for _ in range(2))
         changed = backend.Schedule(automatic=False, interval=30)
-        backend.save_schedule(one, changed)
+        backend.save_schedule(one, backend.ScheduleEdit(**changed.model_dump()))
         self.assertEqual(backend.get_schedule(one), changed)
         self.assertEqual(backend.get_schedule(two), backend.Schedule())
         config = configuration()

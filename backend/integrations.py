@@ -123,13 +123,15 @@ def create(body: Integration):
     key = uuid4().hex
     with database(write=True) as conn:
         conn.execute("INSERT INTO integrations VALUES (?, ?)", (key, body.model_dump_json()))
+        conn.changed("integrations", key)
     return {"id": key, **body.model_dump()}
 
 
 @router.delete("/{key}")
 def remove(key: str):
     with database(write=True) as conn:
-        conn.execute("DELETE FROM integrations WHERE id=?", (key,))
+        if conn.execute("DELETE FROM integrations WHERE id=?", (key,)).rowcount:
+            conn.changed("integrations", key)
     return {}
 
 
