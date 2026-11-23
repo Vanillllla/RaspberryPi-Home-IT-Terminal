@@ -79,7 +79,7 @@ python3 -m venv .venv &&
 
 В режиме WSL2 NAT Windows может принимать подключения на выбранных сетевых IPv4-адресах и передавать их на `127.0.0.1:5173`. Запустите оба процесса как описано выше и проверьте `http://127.0.0.1:5173/api/state` в Windows. Проброс использует Windows localhost, поэтому при смене внутреннего IP WSL обновлять его не требуется. [Сетевая документация WSL](https://learn.microsoft.com/windows/wsl/networking)
 
-В PowerShell от имени администратора найдите IPv4-адреса нужных интерфейсов командой `Get-NetIPAddress -AddressFamily IPv4`. В примере ниже подставьте адрес Windows и подсеть клиентов для каждого доверенного интерфейса. Для WireGuard укажите адреса клиентов или подсети за пиром, которым нужен доступ. Адрес самого Windows-интерфейса WireGuard может иметь префикс `/32`.
+Сначала включите WireGuard и проверьте, что VPN-адрес появился в Windows. В PowerShell от имени администратора найдите IPv4-адреса нужных интерфейсов командой `Get-NetIPAddress -AddressFamily IPv4`. В примере ниже оставьте только нужные адреса Windows и укажите подсети клиентов для каждого из них. Для WireGuard укажите адреса клиентов или подсети за пиром, которым нужен доступ. Адрес самого Windows-интерфейса WireGuard может иметь префикс `/32`.
 
 ```powershell
 $networks = @{
@@ -97,10 +97,21 @@ foreach ($address in $networks.Keys) {
             -Protocol TCP -LocalPort 5173 -LocalAddress $address -RemoteAddress $networks[$address] `
             -InterfaceAlias $interface -ErrorAction Stop | Out-Null
     }
+    # Пересоздаём запись после появления адреса интерфейса.
+    netsh.exe interface portproxy delete v4tov4 listenaddress=$address listenport=5173 | Out-Null
     netsh.exe interface portproxy add v4tov4 listenaddress=$address listenport=5173 connectaddress=127.0.0.1 connectport=5173
     if ($LASTEXITCODE -ne 0) { throw "Не удалось настроить проброс для $address" }
 }
 ```
+
+Проверьте проброс с Windows. `netsh interface portproxy show all` показывает сохранённые записи. Наличие записи ещё не подтверждает, что Windows принимает подключения.
+
+```powershell
+netstat -ano | Select-String '10\.77\.77\.2:5173\s+.*LISTENING'
+curl.exe --noproxy "*" --fail --show-error --max-time 5 http://10.77.77.2:5173/api/state
+```
+
+Если localhost отвечает, а слушателя на `10.77.77.2:5173` нет, проверьте, что служба `iphlpsvc` запущена (`Get-Service iphlpsvc`), и повторите настройку после появления VPN-адреса. Для восстановления только WireGuard оставьте в `$networks` одну запись `10.77.77.2`.
 
 На другом устройстве откройте `http://<IPv4 Windows в этой сети>:5173`. Для проверки откройте также `/api/state` на том же адресе. У клиента WireGuard должен быть маршрут к VPN-адресу Windows через нужного пира. У дашборда нет авторизации, поэтому используйте только доверенные подсети и оставьте порт закрытым для интернета.
 
