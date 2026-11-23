@@ -1,6 +1,7 @@
 import { useTranslation } from '../i18n'
 import { useLayoutEffect, useRef, useState, type KeyboardEvent, type CSSProperties } from 'react'
 import { api } from '../api'
+import { WidgetSwitch } from '../WidgetControls'
 import { canPlace, editableDraft, frameStyle, ElementLayout } from './ElementLayout'
 import { useElementDrag } from './useElementDrag'
 import { ElementView } from './TemplateCard'
@@ -348,8 +349,8 @@ export function Builder({ cellSize, columns, maxRows, templates, busy, setBusy, 
           <label>{t('Отправить команду')}<input value={item.command} placeholder={t('Например, refresh')} onChange={e => updateItem({ command: e.target.value })} /></label>
           {item.command && <small>{t('Действия ·')} {sentActions.map(a => actionName(a, t)).join(', ') || t('не назначены')}</small>}
         </>}
-        {item.kind === 'switch' && <label className="builder-check"><input type="checkbox" checked={item.checked}
-          onChange={e => updateItem({ checked: e.target.checked })} />{t('Включён изначально')}</label>}
+        {item.kind === 'switch' && <WidgetSwitch label={t('Включён изначально')} checked={item.checked}
+          onChange={checked => updateItem({ checked })} />}
         {item.kind === 'slider' && (['minimum', 'maximum', 'step', 'initial'] as const).map((key, i) =>
           <label key={key}>{[t('Минимум'), t('Максимум'), t('Шаг'), t('Начальное значение')][i]}
             <input type="number" step="any" value={item[key]} onChange={e => updateItem({ [key]: Number(e.target.value) })} /></label>)}

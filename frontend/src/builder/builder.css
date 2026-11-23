@@ -19,7 +19,8 @@ dialog:has(.builder) { width: min(1380px, 96vw); max-width: 96vw; height: 92dvh;
 .template-import p { margin: 0; }
 .import-options { display: flex; flex-wrap: wrap; gap: .4rem; }
 .builder-bar label { flex: 1 1 10rem; }
-.builder-bar label, .builder-inspector label { display: grid; gap: .3rem; font-size: .9rem; }
+.builder-bar label, .builder-inspector label { gap: .3rem; font-size: .9rem; }
+.builder-bar label, .builder-inspector label:not(.widget-switch) { display: grid; }
 .builder :is(input,select,textarea):not([type=checkbox], [type=range], .built-input, .ipv4-octets input) {
   width: 100%; min-width: 0; min-height: 40px; border: 1px solid var(--line); border-radius: 7px;
   padding: .45rem .55rem; color: var(--text); background: var(--surface); font: inherit;
@@ -78,13 +79,13 @@ dialog:has(.builder) { width: min(1380px, 96vw); max-width: 96vw; height: 92dvh;
 .frame-content > .built-indicator { width: 100%; height: 100%; min-height: 0; justify-content: center; }
 .frame-content .built-indicator i { width: min(100cqw, 100cqh); height: min(100cqw, 100cqh); }
 .frame-content > .widget-switch { width: 100%; height: 100%; min-height: 0; }
-.frame-content .widget-switch input {
+.frame-content .widget-switch-control {
   --switch-height: min(100cqh, 60cqw);
-  width: calc(var(--switch-height) * 1.66); height: var(--switch-height); border-radius: 999px;
-  padding: 0 min(.2rem, 4cqw);
+  --switch-thumb: max(0px, calc(var(--switch-height) * .75 - 1.5px));
+  --switch-inset: min(.2rem, 4cqw);
+  width: calc(var(--switch-height) * 1.66);
 }
-.frame-content .widget-switch:has(span) input { --switch-height: min(100cqh, 32cqw); }
-.frame-content .widget-switch input::before { height: 75%; width: auto; aspect-ratio: 1; }
+.frame-content .widget-switch:has(> .widget-switch-label) .widget-switch-control { --switch-height: min(100cqh, 32cqw); }
 .frame-content > .built-slider { display: flex; flex-direction: column; height: 100%; }
 .frame-content .built-slider > span:first-child:not(.widget-range) { max-height: 60%; overflow: hidden; }
 .frame-content .widget-range {

@@ -11,8 +11,11 @@ interface SwitchProps {
 export function WidgetSwitch({ label, checked, onChange }: SwitchProps) {
   const { t } = useTranslation()
   return <label className="widget-switch">
-    <input type="checkbox" role="switch" aria-label={label || t('Переключатель')} checked={checked} onChange={event => onChange(event.currentTarget.checked)} />
-    {label && <span>{label}</span>}
+    <span className="widget-switch-control">
+      <input type="checkbox" role="switch" aria-label={label || t('Переключатель')} checked={checked} onChange={event => onChange(event.currentTarget.checked)} />
+      <span className="widget-switch-track" aria-hidden="true" />
+    </span>
+    {label && <span className="widget-switch-label">{label}</span>}
   </label>
 }
 
