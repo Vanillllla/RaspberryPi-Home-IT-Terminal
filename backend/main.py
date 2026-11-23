@@ -83,6 +83,7 @@ Palette = Literal["white", "black", "green", "red", "purple", "yellow", "orange"
 
 
 class CardAppearance(BaseModel):
+    customTitle: str | None = Field(default=None, max_length=100)
     titlePalette: Palette
     cardPalette: Palette
     hideTitle: bool | None = Field(default=None, strict=True)
@@ -211,6 +212,8 @@ def configure_widget(widget_id: int, body: WidgetConfiguration):
     with database(write=True) as conn:
         update_layout(conn, widget_id, rows=body.rows, size=body)
         appearance = body.appearance.model_dump(exclude_none=True)
+        if body.appearance.customTitle is not None:
+            appearance["customTitle"] = body.appearance.customTitle.strip() or None
         row = conn.execute(
             """UPDATE widgets SET appearance=json_patch(appearance, ?), settings=COALESCE(?, settings)
                WHERE id=? RETURNING *""",

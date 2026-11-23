@@ -147,7 +147,8 @@ dialog::backdrop { background: var(--backdrop); }
 .instance-settings > label { display: flex; align-items: center; gap: .6rem; justify-content: space-between; }
 .instance-settings > .hide-card-title { justify-content: flex-start; min-height: 44px; }
 .instance-settings input[type="number"] { width: 5rem; }
-.instance-settings input[type="number"], .instance-settings select { min-height: 44px; font: inherit; border: 1px solid var(--line); border-radius: 8px; padding: .5rem; }
+.instance-settings input[type="text"] { min-width: 0; flex: 1; }
+.instance-settings :is(input[type="number"], input[type="text"], select) { min-height: 44px; font: inherit; border: 1px solid var(--line); border-radius: 8px; padding: .5rem; }
 .palette-picker { display: flex; flex-wrap: wrap; }
 .palette-picker legend { padding: 0; }
 .palette-picker label { position: relative; display: grid; place-items: center; width: 44px; height: 44px; cursor: pointer; }

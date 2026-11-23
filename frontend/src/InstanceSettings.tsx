@@ -26,8 +26,8 @@ function PalettePicker({ label, name, value, change }: {
   </fieldset>
 }
 
-export function InstanceSettings({ widget, pluginSettings, busy, save }: {
-  widget: WidgetInstance; pluginSettings: boolean; busy: boolean; save: (draft: Configuration) => Promise<void>
+export function InstanceSettings({ widget, defaultTitle, pluginSettings, busy, save }: {
+  widget: WidgetInstance; defaultTitle: string; pluginSettings: boolean; busy: boolean; save: (draft: Configuration) => Promise<void>
 }) {
   const { t } = useTranslation()
   const [width, setWidth] = useState(String(widget.width))
@@ -54,6 +54,8 @@ export function InstanceSettings({ widget, pluginSettings, busy, save }: {
     }}>
       <fieldset className="instance-settings" disabled={busy}>
         <legend>{t('Оформление')}</legend>
+        <label>{t('Название виджета')}<input type="text" maxLength={100} placeholder={defaultTitle}
+          value={appearance.customTitle} onChange={e => setAppearance({ ...appearance, customTitle: e.target.value })} /></label>
         <label className="hide-card-title"><input type="checkbox" checked={appearance.hideTitle}
           onChange={e => setAppearance({ ...appearance, hideTitle: e.target.checked })} />{t('Скрыть название')}</label>
         <PalettePicker label={t('Фон названия')} name="titlePalette" value={appearance.titlePalette}

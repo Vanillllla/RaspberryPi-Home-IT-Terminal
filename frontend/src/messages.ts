@@ -1,4 +1,5 @@
 export const english = {
+  "Название виджета": "Widget name",
   "Декоративная полоса": "Divider",
   "Направление полосы": "Divider orientation",
   "Горизонтальная": "Horizontal",

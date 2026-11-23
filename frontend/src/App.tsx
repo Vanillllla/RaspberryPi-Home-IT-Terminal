@@ -200,6 +200,10 @@ export function App() {
   }
 
   const localizedPlugins = data?.plugins.map(plugin => pluginText(plugin, language)) ?? []
+  function defaultTitle(w: WidgetInstance) {
+    return data?.templates.find(t => t.id === w.plugin_id)?.name
+      ?? localizedPlugins.find(p => p.id === w.plugin_id)?.name ?? w.plugin_id
+  }
   const opened = panel && 'id' in panel && data?.widgets.find(w => w.id === panel.id)
   return <>
     <main>
@@ -233,7 +237,7 @@ export function App() {
           render={(page, interactive) => (
             <Grid reportCellSize={page.id === desktop.id ? setCellSize : undefined} columns={data.columns} maxRows={data.max_rows} reportRows={page.id === desktop.id ? setRows : undefined} interactive={interactive && !busy} widgets={transfer ? data.widgets.map(w => w.id === transfer.id ? { ...w, ...transfer } : w) : data.widgets}
               desktop={page} desktops={data.desktops}
-              title={w => data.templates.find(t => t.id === w.plugin_id)?.name ?? localizedPlugins.find(p => p.id === w.plugin_id)?.name ?? w.plugin_id}
+              title={w => cardAppearance(w.appearance).customTitle || defaultTitle(w)}
               openActions={id => setPanel({ mode: 'actions', id })}
               move={moveWidget}
               render={renderCard} />
@@ -363,7 +367,7 @@ export function App() {
     </Modal>}
     {data && desktop && opened && panel.mode !== 'actions' && <Modal title={panel.mode === 'Settings' ? t('Настройки') : t('Подробнее')}
       pending={busy} close={() => setPanel(null)}>{panel.mode === 'Details' ? <div className="details-view">{view(opened, 'Details')}</div> :
-        <InstanceSettings key={opened.id} widget={opened} busy={busy}
+        <InstanceSettings key={opened.id} widget={opened} defaultTitle={defaultTitle(opened)} busy={busy}
           pluginSettings={data.plugins.some(p => p.id === opened.plugin_id && p.capabilities.includes('settings'))}
           save={async draft => {
             const reason = placementError(data.widgets.filter(w => w.desktop_id === opened.desktop_id),

@@ -10,8 +10,9 @@ function palette(value: unknown, fallback: Palette): Palette {
   return typeof value === 'string' && Object.hasOwn(palettes, value) ? value as Palette : fallback
 }
 
-export function cardAppearance({ horizontalAlign, verticalAlign, titlePalette, cardPalette, hideTitle }: WidgetInstance['appearance']) {
+export function cardAppearance({ horizontalAlign, verticalAlign, titlePalette, cardPalette, hideTitle, customTitle }: WidgetInstance['appearance']) {
   return {
+    customTitle: typeof customTitle === 'string' ? customTitle : '',
     hideTitle: hideTitle === true,
     horizontalAlign: horizontalAlign === 'left' || horizontalAlign === 'center' || horizontalAlign === 'right'
       ? horizontalAlign : undefined,
