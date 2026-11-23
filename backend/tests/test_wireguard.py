@@ -51,7 +51,9 @@ class WireGuardTest(unittest.TestCase):
         one, two = (main.create_widget(1, main.AddWidget(plugin_id="wireguard"))["id"] for _ in range(2))
         config = configuration()
         profile = backend.add_profile(one, "Home", config.encode())["id"]
-        self.assertEqual(storage.DB_PATH.stat().st_mode & 0o777, 0o600)
+        private = directory / "secrets"
+        self.assertEqual(private.stat().st_mode & 0o777, 0o700)
+        self.assertEqual((private / "test.db").stat().st_mode & 0o777, 0o600)
         info, = backend.list_profiles(one)
         self.assertEqual(info, dict(id=profile, name="Home", target="10.77.77.1", connected=False, ping=None))
         self.assertNotIn(config.split("PrivateKey = ")[1].splitlines()[0], json.dumps(main.state()["widgets"]))
@@ -65,4 +67,5 @@ class WireGuardTest(unittest.TestCase):
         self.assertEqual(len(backend.list_profiles(one)), 1)
         main.delete_widget(one)
         with storage.database() as conn:
-            self.assertFalse(conn.execute("SELECT id FROM wireguard_profiles").fetchall())
+            storage.attach_private_profiles(conn)
+            self.assertFalse(conn.execute("SELECT id FROM private_profiles.wireguard_profiles").fetchall())

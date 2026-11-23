@@ -21,15 +21,29 @@ def check_widget(conn, widget_id):
         raise HTTPException(404, tr("Виджет отсутствует", "Widget not found"))
 
 
-def has_profiles_table(conn):
-    return conn.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='wireguard_profiles'").fetchone()
+def open_profiles(conn):
+    storage.attach_private_profiles(conn)
+    conn.execute("""CREATE TABLE IF NOT EXISTS private_profiles.wireguard_profiles (
+        id TEXT PRIMARY KEY, widget_id INTEGER NOT NULL,
+        name TEXT NOT NULL, target TEXT NOT NULL, config TEXT NOT NULL)""")
+
+
+def initialize_profiles():
+    with storage.database(write=True) as conn:
+        if not conn.execute("SELECT 1 FROM main.sqlite_master WHERE type='table' AND name='wireguard_profiles'").fetchone():
+            return
+        open_profiles(conn)
+        conn.execute("""INSERT INTO private_profiles.wireguard_profiles (id, widget_id, name, target, config)
+            SELECT id, widget_id, name, target, config FROM main.wireguard_profiles ORDER BY rowid""")
+        conn.execute("PRAGMA main.secure_delete = ON")
+        conn.execute("DROP TABLE main.wireguard_profiles")
 
 
 def selected(conn, widget_id, profile_id):
     check_widget(conn, widget_id)
-    if not has_profiles_table(conn):
-        raise HTTPException(404, tr("Профиль отсутствует", "Profile not found"))
-    row = conn.execute("SELECT * FROM wireguard_profiles WHERE widget_id=? AND id=?", (widget_id, profile_id)).fetchone()
+    open_profiles(conn)
+    row = conn.execute("SELECT * FROM private_profiles.wireguard_profiles WHERE widget_id=? AND id=?",
+                       (widget_id, profile_id)).fetchone()
     if row is None:
         raise HTTPException(404, tr("Профиль отсутствует", "Profile not found"))
     return row
@@ -55,12 +69,10 @@ def add_profile(widget_id, name, body):
                                     "Check the address, keys and sections in the WireGuard file.")) from None
     with storage.database(write=True) as conn:
         check_widget(conn, widget_id)
-        storage.DB_PATH.chmod(0o600)
-        conn.execute("""CREATE TABLE IF NOT EXISTS wireguard_profiles (
-            id TEXT PRIMARY KEY, widget_id INTEGER NOT NULL REFERENCES widgets(id) ON DELETE CASCADE,
-            name TEXT NOT NULL, target TEXT NOT NULL, config TEXT NOT NULL)""")
+        open_profiles(conn)
         profile_id = secrets.token_hex(5)
-        conn.execute("INSERT INTO wireguard_profiles VALUES (?, ?, ?, ?, ?)", (profile_id, widget_id, name, target, config))
+        conn.execute("INSERT INTO private_profiles.wireguard_profiles VALUES (?, ?, ?, ?, ?)",
+                     (profile_id, widget_id, name, target, config))
     return {"id": profile_id}
 
 
@@ -95,11 +107,10 @@ def status(row):
 
 @router.get("/{widget_id}/profiles")
 def list_profiles(widget_id: int):
-    with storage.database() as conn:
+    with storage.database(write=True) as conn:
         check_widget(conn, widget_id)
-        if not has_profiles_table(conn):
-            return []
-        rows = conn.execute("SELECT id, name, target FROM wireguard_profiles WHERE widget_id=? ORDER BY rowid",
+        open_profiles(conn)
+        rows = conn.execute("SELECT id, name, target FROM private_profiles.wireguard_profiles WHERE widget_id=? ORDER BY rowid",
                             (widget_id,)).fetchall()
     with ThreadPoolExecutor(max_workers=4) as pool:
         return list(pool.map(status, rows))
@@ -146,11 +157,11 @@ def remove(widget_id: int, profile_id: str):
     with storage.database(write=True) as conn:
         row = selected(conn, widget_id, profile_id)
         disconnect_if_present(row)
-        conn.execute("DELETE FROM wireguard_profiles WHERE id=?", (profile_id,))
+        conn.execute("DELETE FROM private_profiles.wireguard_profiles WHERE id=?", (profile_id,))
 
 
 def before_widget_delete(conn, widget_id):
-    if not has_profiles_table(conn):
-        return
-    for row in conn.execute("SELECT id FROM wireguard_profiles WHERE widget_id=?", (widget_id,)):
+    open_profiles(conn)
+    for row in conn.execute("SELECT id FROM private_profiles.wireguard_profiles WHERE widget_id=?", (widget_id,)):
         disconnect_if_present(row)
+    conn.execute("DELETE FROM private_profiles.wireguard_profiles WHERE widget_id=?", (widget_id,))

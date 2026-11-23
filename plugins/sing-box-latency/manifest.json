@@ -1,0 +1,14 @@
+{
+  "apiVersion": 1,
+  "id": "sing-box-latency",
+  "name": "Задержка sing-box",
+  "version": "1.0.0",
+  "description": "Проверка соединения через несколько профилей sing-box",
+  "capabilities": ["details", "backend"],
+  "translations": {
+    "en": {
+      "name": "sing-box latency",
+      "description": "Check connectivity through multiple sing-box profiles"
+    }
+  }
+}

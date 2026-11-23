@@ -37,6 +37,7 @@ def load_backend(folder: Path):
 def discover(app: FastAPI):
     registry = {}
     app.state.before_widget_delete = {}
+    app.state.initialize_plugins = {}
     for path in sorted(PLUGINS.glob("*/manifest.json")):
         try:
             manifest = Manifest.model_validate_json(path.read_bytes())
@@ -47,7 +48,17 @@ def discover(app: FastAPI):
                 app.include_router(module.router, prefix=f"/api/plugins/{manifest.id}")
                 if callable(getattr(module, "before_widget_delete", None)):
                     app.state.before_widget_delete[manifest.id] = module.before_widget_delete
+                if callable(getattr(module, "initialize_profiles", None)):
+                    app.state.initialize_plugins[manifest.id] = module.initialize_profiles
             registry[manifest.id] = manifest
         except Exception:
             log.exception("Ошибка загрузки плагина %s", path.parent.name)
     return registry
+
+
+def initialize_plugins(app: FastAPI):
+    for plugin_id, initialize in app.state.initialize_plugins.items():
+        try:
+            initialize()
+        except Exception:
+            log.error("Не удалось подготовить хранилище плагина %s", plugin_id)

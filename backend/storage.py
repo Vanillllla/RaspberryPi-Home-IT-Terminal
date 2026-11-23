@@ -7,6 +7,22 @@ from pathlib import Path
 DB_PATH = Path(os.environ.get("TERMINAL_DB", Path(__file__).parent / "data/terminal.sqlite3"))
 
 
+def private_directory():
+    directory = DB_PATH.parent / "secrets"
+    directory.mkdir(mode=0o700, exist_ok=True)
+    directory.chmod(0o700)
+    return directory
+
+
+def attach_private_profiles(conn):
+    if any(row["name"] == "private_profiles" for row in conn.execute("PRAGMA database_list")):
+        return
+    path = private_directory() / DB_PATH.name
+    conn.execute("ATTACH DATABASE ? AS private_profiles", (str(path),))
+    path.chmod(0o600)
+    conn.execute("PRAGMA private_profiles.secure_delete = ON")
+
+
 @contextmanager
 def database(*, write=False):
     conn = sqlite3.connect(DB_PATH, timeout=10)

@@ -9,7 +9,7 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
 from .i18n import language, tr, validation_message
-from .discovery import discover
+from .discovery import discover, initialize_plugins
 from .layout import COLUMNS, DEFAULT_WIDTH, DEFAULT_HEIGHT, MAX_ROWS, Layout, row_count
 from .template_packages import discover_packages, router as packages_router
 from .templates import router as templates_router, templates
@@ -20,6 +20,7 @@ from .storage import database, initialize, insert_desktop, instance
 @asynccontextmanager
 async def lifespan(app):
     initialize()
+    initialize_plugins(app)
     discover_packages()
     yield
 
@@ -42,8 +43,12 @@ async def request_language(request: Request, call_next):
 
 
 @app.exception_handler(RequestValidationError)
-async def invalid_request(_request: Request, error: RequestValidationError):
-    details = [{**issue, "msg": validation_message(issue)} for issue in error.errors()]
+async def invalid_request(request: Request, error: RequestValidationError):
+    if request.url.path.startswith("/api/plugins/"):
+        details = [{"loc": issue["loc"], "type": issue["type"], "msg": validation_message(issue)}
+                   for issue in error.errors()]
+    else:
+        details = [{**issue, "msg": validation_message(issue)} for issue in error.errors()]
     return JSONResponse(status_code=422, content={"detail": jsonable_encoder(details)})
 
 
