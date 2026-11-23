@@ -1,6 +1,7 @@
 import base64
 import json
 import secrets
+import subprocess
 import tempfile
 import unittest
 from pathlib import Path
@@ -44,11 +45,27 @@ class WireGuardTest(unittest.TestCase):
         with patch.object(tunnel.subprocess, "check_output", return_value=table), self.assertRaises(tunnel.TunnelError):
             tunnel.check_routes(routes)
 
+    def test_status_can_be_read_without_a_ping(self):
+        row = {"id": "0123456789", "name": "Home", "target": "10.77.77.1"}
+        response = subprocess.CompletedProcess([], 0, stdout="time=12.3 ms")
+        with patch.object(tunnel, "interface_state", return_value=True), patch.object(
+            backend.subprocess, "run", return_value=response,
+        ) as run:
+            result = backend.status(row, probe=False)
+            self.assertTrue(result["connected"])
+            self.assertIsNone(result["ping"])
+            run.assert_not_called()
+            self.assertEqual(backend.status(row)["ping"], 12.3)
+
     def test_profile_isolation_and_widget_cleanup(self):
         directory = Path(self.enterContext(tempfile.TemporaryDirectory()))
         self.enterContext(patch.object(storage, "DB_PATH", directory / "test.db"))
         storage.initialize()
         one, two = (main.create_widget(1, main.AddWidget(plugin_id="wireguard"))["id"] for _ in range(2))
+        changed = backend.Schedule(automatic=False, interval=30)
+        backend.save_schedule(one, changed)
+        self.assertEqual(backend.get_schedule(one), changed)
+        self.assertEqual(backend.get_schedule(two), backend.Schedule())
         config = configuration()
         profile = backend.add_profile(one, "Home", config.encode())["id"]
         private = directory / "secrets"

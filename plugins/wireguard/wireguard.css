@@ -1,5 +1,17 @@
-.wg-card, .wg-details { display: grid; gap: .5rem; min-width: 0; }
-.wg-card { width: 100%; max-height: 100%; overflow-y: auto; }
+.widget-content:has(> .wg-card) {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-rows: minmax(0, 1fr) auto;
+  gap: .45rem;
+  flex: 1;
+  min-height: 0;
+  align-self: stretch;
+  margin-block: 0;
+}
+.wg-card { display: contents; }
+.wg-results, .wg-details { display: grid; gap: .5rem; min-width: 0; }
+.wg-results { grid-column: 1 / -1; min-height: 0; overflow-y: auto; align-content: start; }
+.wg-check, .widget-content:has(> .wg-card) > button { grid-row: 2; padding-inline: .35rem; }
 .wg-card p, .wg-details p { margin: 0; }
 .wg-row {
   display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap;
@@ -12,3 +24,10 @@
 .wg-details label, .wg-details small { display: block; }
 .wg-details input { display: block; max-width: 100%; margin-block: .5rem; }
 .wg-details [role="alert"] { white-space: pre-line; }
+.wg-schedule {
+  display: flex; align-items: center; flex-wrap: wrap; gap: .5rem 1rem;
+  min-width: 0; padding: 0 0 .5rem; margin: 0; border: 0;
+}
+.wg-schedule label { display: flex; align-items: center; gap: .5rem; min-height: 44px; }
+.wg-schedule input { margin: 0; }
+.wg-schedule input[type="number"] { min-height: 44px; width: 5rem; font: inherit; }

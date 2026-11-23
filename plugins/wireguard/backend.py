@@ -7,6 +7,7 @@ from pathlib import Path
 
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.concurrency import run_in_threadpool
+from pydantic import BaseModel, Field
 
 from backend import storage
 from backend.i18n import tr
@@ -89,16 +90,18 @@ async def upload(widget_id: int, name: str, request: Request):
     return await run_in_threadpool(add_profile, widget_id, name.strip(), body)
 
 
-def status(row):
+def status(row, probe=True):
     result = dict(row)
     result.update(connected=False, ping=None)
     try:
         result["connected"] = bool(tunnel.interface_state(row["id"]))
-        if result["connected"]:
-            probe = subprocess.run(["/usr/bin/ping", "-n", "-I", tunnel.device(row["id"]), "-c", "1", "-W", "1",
-                                    row["target"]], env=tunnel.ENV, capture_output=True, text=True, timeout=2)
-            match = re.search(r"time[=<]([\d.]+) ms", probe.stdout)
-            if probe.returncode == 0 and match:
+        if probe and result["connected"]:
+            reply = subprocess.run(
+                ["/usr/bin/ping", "-n", "-I", tunnel.device(row["id"]), "-c", "1", "-W", "1", row["target"]],
+                env=tunnel.ENV, capture_output=True, text=True, timeout=2,
+            )
+            match = re.search(r"time[=<]([\d.]+) ms", reply.stdout)
+            if reply.returncode == 0 and match:
                 result["ping"] = float(match[1])
     except (OSError, subprocess.SubprocessError, ValueError):
         result["error"] = True
@@ -106,14 +109,36 @@ def status(row):
 
 
 @router.get("/{widget_id}/profiles")
-def list_profiles(widget_id: int):
+def list_profiles(widget_id: int, probe: bool = True):
     with storage.database(write=True) as conn:
         check_widget(conn, widget_id)
         open_profiles(conn)
         rows = conn.execute("SELECT id, name, target FROM private_profiles.wireguard_profiles WHERE widget_id=? ORDER BY rowid",
                             (widget_id,)).fetchall()
     with ThreadPoolExecutor(max_workers=4) as pool:
-        return list(pool.map(status, rows))
+        return list(pool.map(lambda row: status(row, probe), rows))
+
+
+class Schedule(BaseModel):
+    automatic: bool = Field(default=True, strict=True)
+    interval: int = Field(default=5, strict=True, ge=1, le=3600)
+
+
+@router.get("/{widget_id}/schedule", response_model=Schedule)
+def get_schedule(widget_id: int):
+    with storage.database() as conn:
+        check_widget(conn, widget_id)
+        settings = conn.execute("SELECT settings FROM widgets WHERE id=?", (widget_id,)).fetchone()[0]
+        return Schedule.model_validate(json.loads(settings).get("wireguardSchedule", {}))
+
+
+@router.put("/{widget_id}/schedule", response_model=Schedule)
+def save_schedule(widget_id: int, schedule: Schedule):
+    with storage.database(write=True) as conn:
+        check_widget(conn, widget_id)
+        conn.execute("UPDATE widgets SET settings=json_set(settings, '$.wireguardSchedule', json(?)) WHERE id=?",
+                     (schedule.model_dump_json(), widget_id))
+    return schedule
 
 
 def control(row, action):
