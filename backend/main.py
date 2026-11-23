@@ -153,6 +153,13 @@ def swap_desktops(body: DesktopSwap):
                                     "The desktop list changed. Check the order and try again."))
 
 
+def prepare_widget_deletion(conn, widgets):
+    for widget in widgets:
+        cleanup = app.state.before_widget_delete.get(widget["plugin_id"])
+        if cleanup:
+            cleanup(conn, widget["id"])
+
+
 @app.delete("/api/desktops/{desktop_id}")
 def delete_desktop(desktop_id: int):
     with database(write=True) as conn:
@@ -160,6 +167,7 @@ def delete_desktop(desktop_id: int):
             raise HTTPException(404, tr("Рабочий стол отсутствует", "Desktop not found"))
         if not conn.execute("SELECT 1 FROM desktops WHERE id<>? LIMIT 1", (desktop_id,)).fetchone():
             raise HTTPException(409, tr("Последний рабочий стол удалить нельзя", "The last desktop cannot be deleted"))
+        prepare_widget_deletion(conn, conn.execute("SELECT id, plugin_id FROM widgets WHERE desktop_id=?", (desktop_id,)))
         conn.execute("DELETE FROM widgets WHERE desktop_id=?", (desktop_id,))
         conn.execute("DELETE FROM desktops WHERE id=?", (desktop_id,))
         return read_state(conn)
@@ -259,6 +267,7 @@ def save_settings(widget_id: int, body: Settings):
 @app.delete("/api/widgets/{widget_id}")
 def delete_widget(widget_id: int):
     with database(write=True) as conn:
+        prepare_widget_deletion(conn, conn.execute("SELECT id, plugin_id FROM widgets WHERE id=?", (widget_id,)))
         if not conn.execute("DELETE FROM widgets WHERE id=?", (widget_id,)).rowcount:
             raise HTTPException(404, tr("Экземпляр отсутствует", "Widget instance not found"))
     return {"id": widget_id}

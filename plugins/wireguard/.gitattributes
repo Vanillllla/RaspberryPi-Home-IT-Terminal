@@ -1,0 +1,2 @@
+install-helper.sh text eol=lf
+tunnel.py text eol=lf

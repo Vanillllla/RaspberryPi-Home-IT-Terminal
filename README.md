@@ -10,6 +10,8 @@ The current repository supports local development on Debian/WSL2 and Linux, incl
 
 Technical documentation: [plugins](docs/eng/PLUGINS.md) · [template authoring](docs/eng/WIDGET_AUTHORING.md) · [project vision](docs/eng/PROJECT_VISION.md) · [roadmap](docs/eng/ROADMAP.md).
 
+WireGuard widget setup and profile import: [WireGuard](plugins/wireguard/README.md#english).
+
 ## First launch
 
 ### 1. Prepare the system
@@ -90,6 +92,8 @@ Then open `http://localhost:5173`. Run `npm --prefix ./frontend ci` after change
 Текущий проект можно запускать локально в Debian/WSL2 и Linux, в том числе на Raspberry Pi OS для Raspberry Pi 5. **Автоматический запуск в режиме киоска пока не реализован**: systemd и запуск Chromium в kiosk mode требуется настроить отдельно. **Авторизации нет** — не публикуйте интерфейс в интернет, используйте его только локально или в доверенной LAN/VPN.
 
 Техническая документация: [плагины](docs/ru/PLUGINS.md) · [создание шаблонов](docs/ru/WIDGET_AUTHORING.md) · [концепция](docs/ru/PROJECT_VISION.md) · [план развития](docs/ru/ROADMAP.md).
+
+Настройка виджета и загрузка профилей описаны в [инструкции WireGuard](plugins/wireguard/README.md#русский).
 
 ## Первый запуск
 

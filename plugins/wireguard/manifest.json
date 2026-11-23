@@ -1,0 +1,11 @@
+{
+  "apiVersion": 1,
+  "id": "wireguard",
+  "name": "WireGuard",
+  "version": "1.0.0",
+  "description": "Подключение к локальным сетям WireGuard и пинг шлюза",
+  "translations": {
+    "en": { "name": "WireGuard", "description": "Connect to WireGuard LANs and check gateway latency" }
+  },
+  "capabilities": ["details", "backend"]
+}
