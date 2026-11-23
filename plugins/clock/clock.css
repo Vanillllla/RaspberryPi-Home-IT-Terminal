@@ -2,3 +2,13 @@
 .clock time { display: block; font-size: clamp(2rem, 16cqw, 3.3rem); font-weight: 700; line-height: 1.1; letter-spacing: -.045em; font-variant-numeric: tabular-nums; }
 .clock-day { margin-top: .35rem; }
 .clock-day::first-letter { text-transform: uppercase; }
+
+.tile > article:has(> .widget-scroll > .widget-content > .clock--compact) { padding-block-end: 1px; }
+.tile > article:has(.clock--compact) .card-heading button {
+  flex-basis: min(28px, 23%); min-height: 24px; line-height: 1;
+}
+.tile > article:has(.clock--compact) .card-title > span { padding-inline: .35em; font-size: .875rem; }
+.widget-scroll:has(> .widget-content > .clock--compact) { container-type: size; }
+.clock--compact { padding-block-end: min(2px, 7cqh); font-size: min(.875rem, 9cqw, 34cqh); line-height: 1; }
+.clock--compact time { font-size: min(2.8rem, 15cqw, 56cqh); line-height: inherit; white-space: nowrap; }
+.clock--compact .clock-day { margin-top: min(.1rem, 2cqh); white-space: nowrap; }
