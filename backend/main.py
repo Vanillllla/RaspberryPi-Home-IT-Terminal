@@ -84,6 +84,7 @@ Palette = Literal["white", "black", "green", "red", "purple", "yellow", "orange"
 class CardAppearance(BaseModel):
     titlePalette: Palette
     cardPalette: Palette
+    hideTitle: bool | None = Field(default=None, strict=True)
     horizontalAlign: Literal["left", "center", "right"] | None = None
     verticalAlign: Literal["top", "center", "bottom"] | None = None
 

@@ -243,7 +243,8 @@ export function Grid({ widgets, columns, maxRows, reportRows, reportCellSize, in
                 }}>
                 <span className="grip" aria-hidden="true">⠿</span>
               </button>
-              <span className="card-title" title={title(w)}><span data-palette={cardAppearance(w.appearance).titlePalette}>{title(w)}</span></span>
+              {!cardAppearance(w.appearance).hideTitle &&
+                <span className="card-title" title={title(w)}><span data-palette={cardAppearance(w.appearance).titlePalette}>{title(w)}</span></span>}
               <button className="widget-actions" aria-label={t('Действия с виджетом')} aria-haspopup="dialog"
                 title={t('Действия с виджетом')} onClick={() => openActions(w.id)}>⋯</button>
             </div>

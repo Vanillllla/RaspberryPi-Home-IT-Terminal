@@ -54,6 +54,8 @@ export function InstanceSettings({ widget, pluginSettings, busy, save }: {
     }}>
       <fieldset className="instance-settings" disabled={busy}>
         <legend>{t('Оформление')}</legend>
+        <label className="hide-card-title"><input type="checkbox" checked={appearance.hideTitle}
+          onChange={e => setAppearance({ ...appearance, hideTitle: e.target.checked })} />{t('Скрыть название')}</label>
         <PalettePicker label={t('Фон названия')} name="titlePalette" value={appearance.titlePalette}
           change={titlePalette => setAppearance({ ...appearance, titlePalette })} />
         <PalettePicker label={t('Фон карточки')} name="cardPalette" value={appearance.cardPalette}

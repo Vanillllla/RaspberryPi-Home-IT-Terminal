@@ -110,6 +110,7 @@ export const english = {
   "Отмена": "Cancel",
   "Отправить команду": "Send command",
   "Оформление": "Appearance",
+  "Скрыть название": "Hide title",
   "Ошибка виджета": "Widget error",
   "Ошибка действия": "Action failed",
   "Ошибка останавливает цепочку. Повторный запуск действия в той же ветви считается циклом. Предел цепочки — 64 запуска.": "An error stops the chain. Reentering an action in the same branch counts as a cycle. A chain can run up to 64 actions.",
