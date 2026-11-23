@@ -6,6 +6,25 @@ type Mode = 'add' | 'move' | 'resize'
 interface Press { item: Item; mode: Mode; pointer: number; x: number; y: number; moved: boolean }
 const doubleClickDelay = 500
 
+// A span of zero lies on a grid line. A span of one puts the stroke at the cell center.
+export function dividerFrame(item: Item, mode: Mode, dx: number, dy: number, width: number, height: number): Frame {
+  const frame = { ...item.frame! }
+  const vertical = item.orientation === 'vertical'
+  const along = vertical ? 'y' : 'x', across = vertical ? 'x' : 'y'
+  const length = vertical ? 'height' : 'width', thickness = vertical ? 'width' : 'height'
+  const travel = vertical ? dy : dx, offset = vertical ? dx : dy
+  if (mode === 'resize') {
+    frame[length] = Math.max(1, Math.min((vertical ? height : width) - frame[along], frame[length] + Math.round(travel)))
+  } else {
+    const center = mode === 'add' ? offset : frame[across] + frame[thickness] / 2 + offset
+    const snapped = Math.round(center * 2) / 2
+    frame[across] = Math.floor(snapped)
+    frame[thickness] = (snapped - frame[across]) * 2
+    frame[along] = mode === 'add' ? Math.floor(travel) : frame[along] + Math.round(travel)
+  }
+  return frame
+}
+
 export function useElementDrag(surface: RefObject<HTMLDivElement | null>, items: Item[], width: number, height: number,
   place: (item: Item, frame: Frame) => void) {
   const press = useRef<Press | null>(null)
@@ -19,6 +38,12 @@ export function useElementDrag(surface: RefObject<HTMLDivElement | null>, items:
     const rect = node.getBoundingClientRect()
     const frame = { ...start.item.frame! }
     if (start.mode !== 'resize' && !node.contains(document.elementFromPoint(e.clientX, e.clientY))) return null
+    if (start.item.kind === 'divider') {
+      const x = (e.clientX - (start.mode === 'add' ? rect.left : start.x)) * width / rect.width
+      const y = (e.clientY - (start.mode === 'add' ? rect.top : start.y)) * height / rect.height
+      const line = dividerFrame(start.item, start.mode, x, y, width, height)
+      return { item: start.item, frame: line, valid: canPlace(start.item, line, items, width, height) }
+    }
     const dx = Math.round((e.clientX - start.x) * width / rect.width)
     const dy = Math.round((e.clientY - start.y) * height / rect.height)
     if (start.mode === 'resize') {
@@ -31,7 +56,7 @@ export function useElementDrag(surface: RefObject<HTMLDivElement | null>, items:
       frame.x = Math.floor((e.clientX - rect.left) * width / rect.width)
       frame.y = Math.floor((e.clientY - rect.top) * height / rect.height)
     }
-    return { item: start.item, frame, valid: canPlace(start.item.id, frame, items, width, height) }
+    return { item: start.item, frame, valid: canPlace(start.item, frame, items, width, height) }
   }
 
   function cancel() {

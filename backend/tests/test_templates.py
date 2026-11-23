@@ -120,6 +120,26 @@ class TemplateTests(unittest.TestCase):
             self.assertEqual(error.exception.status_code, 422)
             self.assertEqual(state()["templates"], [saved])
 
+    def test_divider_between_touching_controls_preserves_outputs(self):
+        text, button = self.draft["rows"][0]
+        text["frame"] = dict(x=0, y=0, width=5, height=5)
+        button["frame"] = dict(x=0, y=5, width=5, height=5)
+        template = create_template(Definition(**self.draft))
+        widget = create_widget(1, AddWidget(plugin_id=template["id"]))
+        run_action(widget["id"], "read", Invocation(revision=1))
+        before = state()["widgets"]
+        line = {"id": "rule", "kind": "divider", "label": "", "frame": dict(x=0, y=5, width=5, height=0)}
+        template["rows"][0].append(line)
+        saved = edit_template(template["id"], Definition(**template))
+        self.assertEqual(state()["widgets"], before)
+        line.update(orientation="vertical", frame=dict(x=2, y=0, width=1, height=10))
+        saved = edit_template(template["id"], Definition(**{**template, "revision": saved["revision"]}))
+        self.assertEqual(state()["widgets"], before)
+        for invalid in (dict(width=2), dict(height=0), dict(y=1)):
+            bad_line = {**line, "frame": {**line["frame"], **invalid}}
+            with self.assertRaises(HTTPException):
+                create_template(Definition(name="Invalid", rows=[[bad_line]], actions=[]))
+
     def test_running_action_does_not_write_into_edited_template(self):
         template = create_template(Definition(**self.draft))
         widget = create_widget(1, AddWidget(plugin_id=template["id"]))

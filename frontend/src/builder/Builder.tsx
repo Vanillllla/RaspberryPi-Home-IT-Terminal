@@ -3,7 +3,7 @@ import { useLayoutEffect, useRef, useState, type KeyboardEvent, type CSSProperti
 import { api } from '../api'
 import { WidgetSwitch } from '../WidgetControls'
 import { canPlace, editableDraft, frameStyle, ElementLayout } from './ElementLayout'
-import { useElementDrag } from './useElementDrag'
+import { dividerFrame, useElementDrag } from './useElementDrag'
 import { ElementView } from './TemplateCard'
 import { IntegrationPalette, IntegrationBindings, type Catalog, type Integration } from './Integrations'
 import { TemplateImport } from './TemplateImport'
@@ -13,7 +13,7 @@ import { actionKinds, actionLabel, actionName, itemLabel, colors, contextExpress
   type Action, type Draft, type Frame, type Item, type Kind, type Template } from './model'
 import './builder.css'
 
-const symbols: Record<Kind, string> = { text: 'T', button: '▣', switch: '◐', slider: '↔', indicator: '●', input: '▏', shortcut: '↗', integration: '⚙' }
+const symbols: Record<Kind, string> = { divider: '━', text: 'T', button: '▣', switch: '◐', slider: '↔', indicator: '●', input: '▏', shortcut: '↗', integration: '⚙' }
 
 async function copyExpression(expression: string, origin: HTMLElement) {
   if (navigator.clipboard?.writeText) {
@@ -115,7 +115,7 @@ export function Builder({ cellSize, columns, maxRows, templates, busy, setBusy, 
     return <button key={k} {...drag.handlers('add', () => fromPalette(k), () => add(k))}><span aria-hidden="true">{symbols[k]}</span>{t(kinds[k])}</button>
   }
   function fromPalette(kind: Kind) {
-    const sizes: Record<Kind, [number, number]> = { text: [6, 3], button: [6, 3], indicator: [2, 2], switch: [9, 3], slider: [10, 4], input: [14, 3], shortcut: [8, 3], integration: [8, 3] }
+    const sizes: Record<Kind, [number, number]> = { divider: [5, 1], text: [6, 3], button: [6, 3], indicator: [2, 2], switch: [9, 3], slider: [10, 4], input: [14, 3], shortcut: [8, 3], integration: [8, 3] }
     const [w, h] = sizes[kind]
     return { ...newItem(kind, t), frame: { x: 0, y: 0, width: Math.min(w, gridWidth), height: Math.min(h, gridHeight) } }
   }
@@ -130,7 +130,7 @@ export function Builder({ cellSize, columns, maxRows, templates, busy, setBusy, 
     for (let y = 0; y <= gridHeight - element.frame.height; y++) {
       for (let x = 0; x <= gridWidth - element.frame.width; x++) {
         const frame = { ...element.frame, x, y }
-        if (canPlace(element.id, frame, items, gridWidth, gridHeight)) return place(element, frame)
+        if (canPlace(element, frame, items, gridWidth, gridHeight)) return place(element, frame)
       }
     }
     setError(t('Для элемента нет свободного места. Уменьшите соседние элементы или увеличьте шаблон.'))
@@ -140,14 +140,21 @@ export function Builder({ cellSize, columns, maxRows, templates, busy, setBusy, 
     const step = steps[e.key]
     if (!step) return
     e.preventDefault()
+    if (element.kind === 'divider') {
+      const vertical = element.orientation === 'vertical'
+      const frame = dividerFrame(element, resize ? 'resize' : 'move',
+        step[0] * (vertical ? .5 : 1), step[1] * (vertical ? 1 : .5), gridWidth, gridHeight)
+      if (canPlace(element, frame, items, gridWidth, gridHeight)) place(element, frame)
+      return
+    }
     const frame = { ...element.frame! }
     frame[resize ? 'width' : 'x'] += step[0]
     frame[resize ? 'height' : 'y'] += step[1]
-    if (canPlace(element.id, frame, items, gridWidth, gridHeight)) place(element, frame)
+    if (canPlace(element, frame, items, gridWidth, gridHeight)) place(element, frame)
   }
   function change(delta: Partial<Draft>) {
     if ((delta.defaultWidth || delta.defaultHeight) && items.some(e => e.frame &&
-      !canPlace(e.id, e.frame, items, (delta.defaultWidth ?? width) * subdivisions, (delta.defaultHeight ?? height) * subdivisions))) {
+      !canPlace(e, e.frame, items, (delta.defaultWidth ?? width) * subdivisions, (delta.defaultHeight ?? height) * subdivisions))) {
       setError(t('Сначала переместите закреплённые элементы в границы нового размера'))
       return
     }
@@ -277,10 +284,10 @@ export function Builder({ cellSize, columns, maxRows, templates, busy, setBusy, 
                   <div className="builder-preview-cell" data-dragging={drag.target?.item.id === el.id}>
                     <div className="frame-content" inert><ElementView item={el} /></div>
                     <button className="element-select" aria-label={t('Выбрать {kind} · {label}', { kind: t(kinds[el.kind]), label: itemLabel(el, t) })} aria-pressed={el.id === elementId}
-                      title={t('Дважды нажмите, чтобы скопировать выражение Python')}
+                      title={el.kind === 'divider' ? t('Декоративная полоса') : t('Дважды нажмите, чтобы скопировать выражение Python')}
                       onMouseDown={e => { if (tab === 'actions') e.preventDefault() }}
                       onKeyDown={e => arrow(e, el, false)}
-                      {...drag.handlers('move', () => el, () => select(el.id), button => void copyContext(el.id, button))} />
+                      {...drag.handlers('move', () => el, () => select(el.id), el.kind === 'divider' ? undefined : button => void copyContext(el.id, button))} />
                     {el.id === elementId && <button className="resize-handle" aria-label={t('Изменить размер элемента')}
                       title={t('Потяните за угол или используйте стрелки')} onKeyDown={e => arrow(e, el, true)}
                       {...drag.handlers('resize', () => el, () => select(el.id))} />}
@@ -308,7 +315,17 @@ export function Builder({ cellSize, columns, maxRows, templates, busy, setBusy, 
       {helpOpen && <ActionHelp switchId={items.find(e => e.kind === 'switch')?.id} />}
       {tab === 'element' && (item ? <>
         <h4>{t(kinds[item.kind])}</h4>
-        <label>{t('Подпись')}<input value={itemLabel(item, t)} onChange={e => updateItem({ label: e.target.value, defaultLabel: false })} /></label>
+        {item.kind === 'divider' ? <label>{t('Направление полосы')}<select value={item.orientation ?? 'horizontal'}
+          onChange={e => {
+            const orientation = e.target.value === 'vertical' ? 'vertical' : 'horizontal'
+            const frame = item.frame!
+            const width = Math.min(frame.height, gridWidth), height = Math.min(frame.width, gridHeight)
+            place({ ...item, orientation }, { x: Math.min(frame.x, gridWidth - width),
+              y: Math.min(frame.y, gridHeight - height), width, height })
+          }}>
+          <option value="horizontal">{t('Горизонтальная')}</option>
+          <option value="vertical">{t('Вертикальная')}</option>
+        </select></label> : <label>{t('Подпись')}<input value={itemLabel(item, t)} onChange={e => updateItem({ label: e.target.value, defaultLabel: false })} /></label>}
         {item.kind === 'integration' && <IntegrationBindings item={item} items={items} actions={draft.actions} catalog={catalog} update={updateItem} />}
         {item.kind === 'shortcut' && <>
           <label>{t('Адрес ссылки')}<input type="url" placeholder="https://example.com" value={item.href ?? ''}
@@ -368,7 +385,7 @@ export function Builder({ cellSize, columns, maxRows, templates, busy, setBusy, 
             {t('Создать отдельное действие')}
           </button>}
         </>}
-        {item.kind !== 'indicator' && item.kind !== 'integration' && <>
+        {item.kind !== 'indicator' && item.kind !== 'integration' && item.kind !== 'divider' && <>
           <label>{t('Шрифт')}<select value={item.fontFamily ?? 'system'}
             onChange={e => updateItem({ fontFamily: e.target.value as Item['fontFamily'] })}>
             <option value="system">{t('Системный')}</option><option value="serif">{t('С засечками')}</option>

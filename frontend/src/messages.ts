@@ -1,4 +1,8 @@
 export const english = {
+  "Декоративная полоса": "Divider",
+  "Направление полосы": "Divider orientation",
+  "Горизонтальная": "Horizontal",
+  "Вертикальная": "Vertical",
   "Перенести на стол «{name}»": "Move to desktop “{name}”",
   "HTTP GET": "HTTP GET",
   "Python": "Python",

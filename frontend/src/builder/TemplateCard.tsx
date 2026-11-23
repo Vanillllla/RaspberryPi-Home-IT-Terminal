@@ -52,6 +52,7 @@ export function ElementView({ item, inputs = {}, outputs = {}, change }: Element
   const label = itemLabel(item, t)
   const value = inputs[item.id]
   switch (item.kind) {
+    case 'divider': return <span aria-hidden="true" className="built-divider" data-orientation={item.orientation ?? 'horizontal'} />
     case 'integration': return null
     case 'shortcut':
       return <Shortcut item={item} label={label} />

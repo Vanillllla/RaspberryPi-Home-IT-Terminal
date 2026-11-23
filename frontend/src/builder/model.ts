@@ -2,7 +2,7 @@ import type { Translate } from '../i18n'
 
 export const kinds = {
   text: 'Текст', button: 'Кнопка', switch: 'Переключатель', slider: 'Слайдер', indicator: 'Индикатор состояния',
-  input: 'Поле ввода', shortcut: 'Ярлык', integration: 'Интеграция',
+  input: 'Поле ввода', divider: 'Декоративная полоса', shortcut: 'Ярлык', integration: 'Интеграция',
 } as const
 export const actionKinds = {
   time: 'Текущее время', reach: 'Проверка доступности', http: 'HTTP GET', python: 'Python', activate: 'Активация интеграции',
@@ -29,6 +29,7 @@ export interface Frame extends Cell { width: number; height: number }
 export const fontFamilies = { system: 'inherit', serif: 'Georgia, serif', monospace: 'monospace' }
 
 export interface Item {
+  orientation?: 'horizontal' | 'vertical'
   integration?: string
   bindings?: { trigger: string; context: string }[]
   href?: string

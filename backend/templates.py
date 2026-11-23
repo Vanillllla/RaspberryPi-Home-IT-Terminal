@@ -34,8 +34,8 @@ SUBDIVISIONS = 5
 class Frame(BaseModel):
     x: int = Field(strict=True, ge=0)
     y: int = Field(strict=True, ge=0)
-    width: int = Field(strict=True, gt=0)
-    height: int = Field(strict=True, gt=0)
+    width: int = Field(strict=True, ge=0)
+    height: int = Field(strict=True, ge=0)
 
     def overlaps(self, other):
         return (self.x < other.x + other.width and other.x < self.x + self.width
@@ -45,8 +45,9 @@ class Frame(BaseModel):
 class Element(BaseModel):
     model_config = ConfigDict(allow_inf_nan=False)
     id: Id
-    kind: Literal["text", "button", "switch", "slider", "indicator", "input", "shortcut", "integration"]
+    kind: Literal["text", "button", "switch", "slider", "indicator", "input", "shortcut", "integration", "divider"]
     label: str = Field(max_length=2000)
+    orientation: Literal["horizontal", "vertical"] = "horizontal"
     integration: str = Field(default="", max_length=64)
     bindings: list[Binding] = Field(default_factory=list, max_length=32)
     href: str = Field(default="", max_length=4096)
@@ -104,7 +105,8 @@ class Definition(BaseModel):
         return {e.id: e for row in self.rows for e in row}
 
     def runtime_elements(self):
-        return {k: e.model_dump(exclude={"cell", "span", "frame", "fontSize", "fontFamily"}) for k, e in self.elements().items()}
+        return {k: e.model_dump(exclude={"cell", "span", "frame", "fontSize", "fontFamily", "orientation"})
+                for k, e in self.elements().items() if e.kind != "divider"}
 
     def validate_links(self):
         elements = self.elements()
@@ -119,12 +121,26 @@ class Definition(BaseModel):
         frames = [e.frame for e in visible if e.frame is not None]
         if frames and (len(frames) != len(visible) or any(e.cell or e.span for e in visible)):
             raise ValueError(tr("Задайте frame для всех элементов без старых полей cell и span", "Set frame for every element and omit the legacy cell and span fields"))
-        for index, frame in enumerate(frames):
+        solid_frames = []
+        for e in visible:
+            frame = e.frame
+            if frame is None:
+                if e.kind == "divider":
+                    raise ValueError(tr("Задайте рамку полосы", "Set the divider frame"))
+                continue
             if (frame.x + frame.width > self.defaultWidth * SUBDIVISIONS
                     or frame.y + frame.height > self.defaultHeight * SUBDIVISIONS):
                 raise ValueError(tr("Элемент выходит за границы мелкой сетки", "The element extends beyond the fine grid"))
-            if any(frame.overlaps(other) for other in frames[:index]):
+            if e.kind == "divider":
+                length, span = (frame.height, frame.width) if e.orientation == "vertical" else (frame.width, frame.height)
+                if length < 1 or span not in (0, 1):
+                    raise ValueError(tr("Проверьте длину и положение полосы", "Check the divider length and position"))
+                continue
+            if frame.width < 1 or frame.height < 1:
+                raise ValueError(tr("Размер элемента должен быть положительным", "Element dimensions must be positive"))
+            if any(frame.overlaps(other) for other in solid_frames):
                 raise ValueError(tr("Рамки элементов пересекаются", "Element frames overlap"))
+            solid_frames.append(frame)
         occupied = set()
         for e in elements.values():
             if e.kind == "integration":
@@ -189,6 +205,7 @@ def element_label(element):
     if not element.defaultLabel:
         return element.label
     russian, english = {
+        "divider": ("Декоративная полоса", "Divider"),
         "text": ("Текст", "Text"),
         "button": ("Кнопка", "Button"),
         "switch": ("Переключатель", "Switch"),
@@ -369,7 +386,7 @@ def run_action(widget_id: int, action_id: str, body: Invocation):
         if not action:
             raise HTTPException(404, tr("Действие отсутствует в шаблоне экземпляра", "Action not found in this instance's template"))
         settings = json.loads(row["settings"])
-        values = {e.id: (e.color if e.kind == "indicator" else element_label(e)) for e in definition.elements().values()}
+        values = {e.id: (e.color if e.kind == "indicator" else element_label(e)) for e in definition.elements().values() if e.kind != "divider"}
         values.update({k: v for k, v in body.outputs.items() if k in values})
         values.update(settings.get("outputs", {}))
         values.update(inputs(definition, {**settings.get("inputs", {}), **body.inputs}))

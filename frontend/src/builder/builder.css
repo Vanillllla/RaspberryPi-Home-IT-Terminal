@@ -140,3 +140,16 @@ dialog:has(.builder) { width: min(1380px, 96vw); max-width: 96vw; height: 92dvh;
 .integration-bindings { width: 100%; table-layout: fixed; overflow-wrap: anywhere; }
 .attached-integrations { display: flex; flex-wrap: wrap; gap: .5rem 1.75rem; margin: 0; padding-inline-start: 1.25rem; }
 .attached-integrations button { max-width: 100%; overflow-wrap: anywhere; }
+
+.fine-frame[data-divider] { z-index: 1; pointer-events: none; }
+.builder-preview-cell:has(.built-divider) { pointer-events: auto; }
+.built-divider {
+  position: absolute; top: var(--line-position); left: 0; width: 100%; height: 2px;
+  transform: translateY(-50%); background: currentColor; pointer-events: none;
+}
+.built-divider[data-orientation=vertical] {
+  left: var(--line-position); top: 0; width: 2px; height: 100%; transform: translateX(-50%);
+}
+.builder-preview-cell:has(.built-divider) > .resize-handle {
+  width: 12px; height: 12px; max-width: 100%; max-height: 100%;
+}

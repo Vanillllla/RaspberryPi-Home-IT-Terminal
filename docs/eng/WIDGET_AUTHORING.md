@@ -57,6 +57,7 @@ Every element requires the strings `id`, `kind`, and `label`. Its ID must match 
 | `button` | Displays its `label`, optionally sending the string `command` when clicked. |
 | `switch` | Labeled toggle. Initial boolean `checked` defaults to `false`; changing it may send a `command`. |
 | `slider` | Labeled slider. Numeric `minimum`, `maximum`, `step`, and `initial` default to 0, 100, 1, and 0. Changing it may send a `command`. |
+| `divider` | A decorative line can cross elements or follow their shared edge. With `orientation: "horizontal"` (the default), `frame.width` sets its length in fine cells. A height of 0 places it on the top edge of the row and 1 at the center. With `"vertical"`, height sets the length and a width of 0 or 1 selects the left edge or center of the column. |
 | `indicator` | Colored dot with an accessible label/tooltip. Initial `color` is `green`, `yellow`, or `red` (default `green`). |
 | `input` | One-line field. `inputMode`: `text` (default), `number`, `ipv4`, `date`, or `time`. An optional `placeholder` has a 200-character limit; empty uses a format-specific default. Optional `resetCommand` (up to 100 characters) clears the field after a matching command. |
 

@@ -1,16 +1,37 @@
 import type { CSSProperties, ReactNode } from 'react'
 import { cellStyle, fontFamilies, subdivisions, type Cell, type Frame, type Draft, type Item } from './model'
 
-export function canPlace(id: string, frame: Frame, items: Item[], width: number, height: number) {
+export function canPlace(item: Item, frame: Frame, items: Item[], width: number, height: number) {
   const { x, y, width: w, height: h } = frame
-  return x >= 0 && y >= 0 && w >= 1 && h >= 1 && x + w <= width && y + h <= height &&
-    !items.some(other => {
-      const f = other.frame
-      return other.id !== id && f && x < f.x + f.width && f.x < x + w && y < f.y + f.height && f.y < y + h
-    })
+  if (x < 0 || y < 0 || x + w > width || y + h > height) return false
+  if (item.kind === 'divider') {
+    const [length, span] = item.orientation === 'vertical' ? [h, w] : [w, h]
+    return length >= 1 && (span === 0 || span === 1)
+  }
+  return w >= 1 && h >= 1 && !items.some(other => {
+    const f = other.frame
+    return other.id !== item.id && other.kind !== 'divider' && f &&
+      x < f.x + f.width && f.x < x + w && y < f.y + f.height && f.y < y + h
+  })
 }
 
 export function frameStyle(item: Item, columns: number, rows: number, f = item.frame!): CSSProperties {
+  if (item.kind === 'divider') {
+    const vertical = item.orientation === 'vertical'
+    const center = vertical ? f.x + f.width / 2 : f.y + f.height / 2
+    const limit = vertical ? columns : rows
+    const position = (center / limit * 100) + '%'
+    const hitSize = `min(12px, ${100 / limit}%)`
+    const start = `clamp(0px, calc(${position} - ${hitSize} / 2), calc(100% - ${hitSize}))`
+    // Keep the editor handle inside the canvas, including at its outer borders.
+    return {
+      left: vertical ? start : f.x / columns * 100 + '%',
+      top: vertical ? f.y / rows * 100 + '%' : start,
+      width: vertical ? hitSize : f.width / columns * 100 + '%',
+      height: vertical ? f.height / rows * 100 + '%' : hitSize,
+      '--line-position': center === 0 ? '1px' : center === limit ? 'calc(100% - 1px)' : '50%',
+    } as CSSProperties
+  }
   return { left: f.x / columns * 100 + '%', top: f.y / rows * 100 + '%',
     width: f.width / columns * 100 + '%', height: f.height / rows * 100 + '%',
     fontSize: (item.fontSize ?? 12) + 'pt', fontFamily: fontFamilies[item.fontFamily ?? 'system'] }
@@ -91,7 +112,7 @@ export function ElementLayout({ rows: sourceRows, width, height, flowWidth = wid
   const items = rows.flat()
   if (items.every(e => e.frame)) {
     return <div className="fine-layout">{items.map(item =>
-      <div key={item.id} className="fine-frame" style={frameStyle(item, width * subdivisions, height * subdivisions)}>
+      <div key={item.id} className="fine-frame" data-divider={item.kind === 'divider' || undefined} style={frameStyle(item, width * subdivisions, height * subdivisions)}>
         {render(item)}
       </div>)}</div>
   }
