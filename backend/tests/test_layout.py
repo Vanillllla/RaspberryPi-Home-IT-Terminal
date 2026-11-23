@@ -103,3 +103,15 @@ class LayoutTest(unittest.TestCase):
             self.assertEqual(create_widget(1, AddWidget(plugin_id="clock"))["slot"], 8)
         move_widget(1, MoveWidget(slot=1))  # May overlap its own former footprint.
         self.assertEqual(state()["widgets"][0]["slot"], 1)
+
+    def test_transfer_preserves_instance_and_rejects_invalid_destinations(self):
+        other = create_desktop()["id"]
+        original = state()["widgets"][0]
+        move_widget(original["id"], MoveWidget(desktop_id=other, slot=4, rows=2))
+        expected = state()
+        self.assertEqual(expected["widgets"][0], {**original, "desktop_id": other, "slot": 4})
+        for desktop, status in ((1, 409), (other + 1, 404)):
+            with self.assertRaises(HTTPException) as error:
+                move_widget(original["id"], MoveWidget(desktop_id=desktop, slot=4, rows=2))
+            self.assertEqual(error.exception.status_code, status)
+            self.assertEqual(state(), expected)

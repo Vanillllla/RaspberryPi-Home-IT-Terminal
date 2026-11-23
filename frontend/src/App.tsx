@@ -210,10 +210,15 @@ export function App() {
         </div>
         <DesktopPager desktops={data.desktops} active={desktop} select={select} blocked={panel !== null}
           render={(page, interactive) => (
-            <Grid reportCellSize={page.id === desktop.id ? setCellSize : undefined} columns={data.columns} maxRows={data.max_rows} reportRows={page.id === desktop.id ? setRows : undefined} interactive={interactive && !busy} widgets={data.widgets.filter(w => w.desktop_id === page.id)}
+            <Grid reportCellSize={page.id === desktop.id ? setCellSize : undefined} columns={data.columns} maxRows={data.max_rows} reportRows={page.id === desktop.id ? setRows : undefined} interactive={interactive && !busy} widgets={data.widgets}
+              desktop={page} desktops={data.desktops}
               title={w => data.templates.find(t => t.id === w.plugin_id)?.name ?? localizedPlugins.find(p => p.id === w.plugin_id)?.name ?? w.plugin_id}
               openActions={id => setPanel({ mode: 'actions', id })}
-              move={(id, slot, rows) => mutate(() => api('widgets/' + id + '/position', 'PUT', { slot, rows }))}
+              move={(id, slot, rows, destination) => runMutation(async () => {
+                await api('widgets/' + id + '/position', 'PUT', { slot, rows, desktop_id: destination })
+                await reload()
+                if (destination !== page.id) select(destination)
+              })}
               render={renderCard} />
           )} />
       </> : !error && <p>{t('Загрузка рабочего стола…')}</p>}

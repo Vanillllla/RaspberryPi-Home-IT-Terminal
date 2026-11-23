@@ -1,4 +1,5 @@
-import { useTranslation } from './i18n'
+import type { Desktop } from './api'
+import { desktopName, useTranslation } from './i18n'
 import { cardAppearance } from './appearance'
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type PointerEvent, type ReactNode } from 'react'
 import { widgetControlsSelector } from './widgetControlsSelector'
@@ -6,6 +7,8 @@ import { placementError } from './layout'
 import type { WidgetInstance } from './plugin'
 
 interface Props {
+  desktop: Desktop
+  desktops: Desktop[]
   widgets: WidgetInstance[]
   columns: number
   maxRows: number
@@ -15,7 +18,7 @@ interface Props {
   title: (widget: WidgetInstance) => string
   openActions: (id: number) => void
   render: (widget: WidgetInstance) => ReactNode
-  move: (id: number, slot: number, rows: number) => Promise<void>
+  move: (id: number, slot: number, rows: number, destination: number) => Promise<void>
 }
 
 interface Press {
@@ -27,10 +30,13 @@ interface Press {
   tile: HTMLElement
   fromHandle: boolean
   timer?: number
+  edgeTimer?: number
+  edge?: number
+  point?: { clientX: number; clientY: number }
   dragging: boolean
 }
 
-export function Grid({ widgets, columns, maxRows, reportRows, reportCellSize, interactive, title, openActions, render, move }: Props) {
+export function Grid({ desktop, desktops, widgets: allWidgets, columns, maxRows, reportRows, reportCellSize, interactive, title, openActions, render, move }: Props) {
   const { t } = useTranslation()
   const board = useRef<HTMLDivElement>(null)
   const viewport = useRef<HTMLDivElement>(null)
@@ -47,10 +53,19 @@ export function Grid({ widgets, columns, maxRows, reportRows, reportCellSize, in
     return () => observer.disconnect()
   }, [])
 
+  const [previewId, setPreviewId] = useState<number | null>(null)
+  const destination = desktops.find(d => d.id === previewId) ?? desktop
+  const widgets = allWidgets.filter(w => w.desktop_id === destination.id)
+  const [picked, setPicked] = useState<number | null>(null)
+  const [dragging, setDragging] = useState<number | null>(null)
+  const selected = allWidgets.find(w => w.desktop_id === desktop.id && w.id === (dragging ?? picked))
+  const crossing = destination.id !== desktop.id
+  const tiles = crossing && selected && dragging !== null ? [...widgets, selected] : widgets
+
   // Tile padding provides the gutters inside each square's footprint.
   const preferredWidth = Math.max(720, area.width)
   const savedRows = widgets.reduce((bottom, w) => Math.max(bottom, Math.floor(w.slot / columns) + w.height), 0)
-  const rows = Math.min(maxRows, Math.max(1, savedRows, Math.floor(area.height * columns / preferredWidth)))
+  const rows = Math.min(maxRows, Math.max(1, savedRows, crossing ? selected?.height ?? 1 : 1, Math.floor(area.height * columns / preferredWidth)))
   const boardWidth = Math.min(preferredWidth, area.height * columns / rows)
   useLayoutEffect(() => { reportRows?.(rows) }, [reportRows, rows])
 
@@ -58,14 +73,13 @@ export function Grid({ widgets, columns, maxRows, reportRows, reportCellSize, in
 
   const press = useRef<Press | null>(null)
   const suppressClick = useRef(false)
-  const [picked, setPicked] = useState<number | null>(null)
-  const [dragging, setDragging] = useState<number | null>(null)
   const [target, setTarget] = useState<number | null>(null)
   const [pending, setPending] = useState<{ id: number; slot: number } | null>(null)
-  const selected = widgets.find(w => w.id === (dragging ?? picked))
 
   function reset() {
     clearTimeout(press.current?.timer)
+    clearTimeout(press.current?.edgeTimer)
+    setPreviewId(null)
     press.current = null
     setDragging(null)
     setPicked(null)
@@ -77,7 +91,7 @@ export function Grid({ widgets, columns, maxRows, reportRows, reportCellSize, in
       reset()
     }
   }, [interactive])
-  useLayoutEffect(() => { reset() }, [rows, boardWidth])
+  useLayoutEffect(() => { reset() }, [area.width, area.height, desktop.id])
   useEffect(() => {
     function escape(e: KeyboardEvent) {
       if (interactive && e.key === 'Escape') {
@@ -96,6 +110,7 @@ export function Grid({ widgets, columns, maxRows, reportRows, reportCellSize, in
       surface.removeEventListener('touchmove', touchMove)
       window.removeEventListener('keydown', escape)
       clearTimeout(press.current?.timer)
+      clearTimeout(press.current?.edgeTimer)
     }
   }, [interactive])
 
@@ -105,25 +120,48 @@ export function Grid({ widgets, columns, maxRows, reportRows, reportCellSize, in
 
   // All coordinates are relative to the board. Scaling around the grip keeps
   // the same point of the lifted card underneath the pointer.
-  function follow(e: PointerEvent, w: WidgetInstance, grip: Press) {
+  function follow(e: { clientX: number; clientY: number }, w: WidgetInstance, grip: Press) {
     const bounds = board.current!.getBoundingClientRect()
     const cell = bounds.width / columns
     const left = e.clientX - bounds.left - grip.gripX
     const top = e.clientY - bounds.top - grip.gripY
     grip.tile.style.setProperty('--free-x', left + 'px')
     grip.tile.style.setProperty('--free-y', top + 'px')
-    const x = Math.round(left / cell), y = Math.round(top / cell)
+    let x = Math.round(left / cell), y = Math.round(top / cell)
     const visible = viewport.current!.getBoundingClientRect()
+    if (crossing && e.clientX >= 0 && e.clientX <= window.innerWidth &&
+        e.clientY >= bounds.top && e.clientY < bounds.bottom) {
+      x = Math.max(0, Math.min(columns - w.width, x))
+      y = Math.max(0, Math.min(rows - w.height, y))
+      return fits(w, x, y) ? y * columns + x : null
+    }
     const inside = e.clientX >= Math.max(visible.left, bounds.left) && e.clientX < Math.min(visible.right, bounds.right) &&
       e.clientY >= Math.max(0, bounds.top) && e.clientY < Math.min(window.innerHeight, bounds.bottom)
     return inside && fits(w, x, y) ? y * columns + x : null
   }
 
+  useLayoutEffect(() => {
+    const grip = press.current
+    if (grip?.point && selected && grip.dragging) setTarget(follow(grip.point, selected, grip))
+  }, [destination.id, rows, boardWidth])
+
+  const index = desktops.findIndex(d => d.id === destination.id)
+  function watchEdge(e: PointerEvent, grip: Press) {
+    const bounds = viewport.current!.getBoundingClientRect()
+    const side = e.clientX <= bounds.left + 18 ? -1 : e.clientX >= bounds.right - 18 ? 1 : 0
+    const edge = e.clientY >= bounds.top && e.clientY <= bounds.bottom ? side : 0
+    if (edge === grip.edge) return
+    clearTimeout(grip.edgeTimer)
+    grip.edge = edge
+    const next = desktops[index + edge]
+    if (edge && next) grip.edgeTimer = window.setTimeout(() => setPreviewId(next.id), 450)
+  }
+
   async function finish(w: WidgetInstance, slot: number | null) {
     reset()
-    if (slot === null || slot === w.slot || !interactive) return
-    setPending({ id: w.id, slot })
-    try { await move(w.id, slot, rows) }
+    if (slot === null || (!crossing && slot === w.slot) || !interactive) return
+    if (!crossing) setPending({ id: w.id, slot })
+    try { await move(w.id, slot, rows, destination.id) }
     finally { setPending(null) }
   }
 
@@ -184,6 +222,8 @@ export function Grid({ widgets, columns, maxRows, reportRows, reportCellSize, in
       lift(grip, w)
     }
     e.preventDefault() // A lifted tile owns this gesture through pointerup.
+    grip.point = { clientX: e.clientX, clientY: e.clientY }
+    watchEdge(e, grip)
     setTarget(follow(e, w, grip))
   }
 
@@ -212,12 +252,23 @@ export function Grid({ widgets, columns, maxRows, reportRows, reportCellSize, in
       <span>{t('Область сетки')}</span>
       <button aria-label={t('Прокрутить сетку вправо')} onClick={() => viewport.current?.scrollBy({ left: 240 })}>→</button>
     </div>
+    {selected && [-1, 1].map(side => {
+      const next = desktops[index + side]
+      if (!next) return null
+      return <button key={side} className={'transfer-edge ' + (side < 0 ? 'left' : 'right')}
+        aria-label={t('Перенести на стол «{name}»', { name: desktopName(next, t) })}
+        onClick={() => { setPreviewId(next.id); setTarget(null) }}>
+        {side < 0 ? '‹' : '›'}
+      </button>
+    })}
+    {crossing && <output className="transfer-desktop">{desktopName(destination, t)}</output>}
     <div className="board-scroll" ref={viewport}>
       <div ref={board} className={'board' + (selected ? ' moving' : '')}
         style={{ width: boardWidth, aspectRatio: columns + '/' + rows }}>
         <div className="grid-surface" />
         {selected && target !== null && <div className="grid-target" style={geometry(target, selected.width, selected.height)} />}
-        {widgets.map(w => <div key={w.id} data-slot={w.slot} data-widget={w.id}
+        {tiles.map(w => <div key={w.id} data-slot={w.slot} data-widget={w.id}
+          inert={crossing && w.id !== dragging}
           className={'tile' + (dragging === w.id ? ' lifted' : '') + (selected?.id === w.id ? ' selected' : '')}
           style={geometry(pending?.id === w.id ? pending.slot : w.slot, w.width, w.height)}>
           <article data-palette={cardAppearance(w.appearance).cardPalette} onPointerDownCapture={e => start(e, w)} onPointerMove={e => pointerMove(e, w)}
@@ -248,7 +299,7 @@ export function Grid({ widgets, columns, maxRows, reportRows, reportCellSize, in
           </article>
         </div>)}
         {picked !== null && selected && Array.from({ length: columns * rows }, (_, slot) =>
-          slot !== selected.slot && fits(selected, slot % columns, Math.floor(slot / columns)) &&
+          (crossing || slot !== selected.slot) && fits(selected, slot % columns, Math.floor(slot / columns)) &&
           <button className="drop" key={slot} style={geometry(slot, 1, 1)} aria-label={t('В ячейку {number}', { number: slot + 1 })}
             onFocus={() => setTarget(slot)} onPointerEnter={() => setTarget(slot)}
             onClick={() => void finish(selected, slot)}>{slot + 1}</button>)}

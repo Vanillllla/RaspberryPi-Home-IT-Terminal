@@ -65,6 +65,7 @@ class AddWidget(ViewportLayout):
 
 
 class MoveWidget(ViewportLayout):
+    desktop_id: int | None = Field(default=None, strict=True, gt=0)
     slot: int = Field(strict=True, ge=0, lt=COLUMNS * MAX_ROWS)
 
 
@@ -187,16 +188,21 @@ def create_widget(desktop_id: int, body: AddWidget):
         return instance(row)
 
 
-def update_layout(conn, widget_id, *, rows, slot=None, size=None):
+def update_layout(conn, widget_id, *, rows, slot=None, size=None, desktop_id=None):
     w = conn.execute("SELECT * FROM widgets WHERE id=?", (widget_id,)).fetchone()
     if w is None:
         raise HTTPException(404, tr("Экземпляр отсутствует", "Widget instance not found"))
     slot = w["slot"] if slot is None else slot
     width, height = (size.width, size.height) if size else (w["width"], w["height"])
-    reason = Layout(conn, w["desktop_id"], rows=rows, exclude=widget_id).conflict(slot, width, height)
+    if desktop_id is None:
+        desktop_id = w["desktop_id"]
+    elif not conn.execute("SELECT 1 FROM desktops WHERE id=?", (desktop_id,)).fetchone():
+        raise HTTPException(404, tr("Рабочий стол отсутствует", "Desktop not found"))
+    reason = Layout(conn, desktop_id, rows=rows, exclude=widget_id).conflict(slot, width, height)
     if reason:
         raise HTTPException(409, reason)
-    conn.execute("UPDATE widgets SET slot=?, width=?, height=? WHERE id=?", (slot, width, height, widget_id))
+    conn.execute("UPDATE widgets SET desktop_id=?, slot=?, width=?, height=? WHERE id=?",
+                 (desktop_id, slot, width, height, widget_id))
     return {"slot": slot, "width": width, "height": height}
 
 
@@ -216,7 +222,7 @@ def configure_widget(widget_id: int, body: WidgetConfiguration):
 @app.put("/api/widgets/{widget_id}/position")
 def move_widget(widget_id: int, body: MoveWidget):
     with database(write=True) as conn:
-        return update_layout(conn, widget_id, rows=body.rows, slot=body.slot)
+        return update_layout(conn, widget_id, rows=body.rows, slot=body.slot, desktop_id=body.desktop_id)
 
 
 @app.put("/api/widgets/{widget_id}/size")

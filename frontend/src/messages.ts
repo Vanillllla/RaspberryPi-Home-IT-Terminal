@@ -1,4 +1,5 @@
 export const english = {
+  "Перенести на стол «{name}»": "Move to desktop “{name}”",
   "HTTP GET": "HTTP GET",
   "Python": "Python",
   "IPv4": "IPv4",
