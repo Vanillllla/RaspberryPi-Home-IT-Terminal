@@ -1,4 +1,5 @@
 import { useLayoutEffect, useRef, useState, type PointerEvent, type ReactNode } from 'react'
+import { widgetControlsSelector } from './widgetControlsSelector'
 import type { Desktop } from './api'
 
 interface Props {
@@ -72,12 +73,17 @@ export function DesktopPager({ desktops, active, blocked, select, render }: Prop
 
   return <div className="pager" inert={blocked} onPointerDown={e => {
     if (blocked || animation.current || !e.isPrimary || e.button !== 0 || swipe.current) return
-    if ((e.target as Element).closest('article,button,.moving')) return
+    const origin = e.target as Element
+    if (origin.closest('.moving') || origin.closest(widgetControlsSelector)) return
+    const onCard = origin.closest('article')
+    if (onCard && e.pointerType !== 'touch') return
     swipe.current = { pointer: e.pointerId, x: e.clientX, y: e.clientY, width: e.currentTarget.clientWidth }
-    e.currentTarget.setPointerCapture(e.pointerId)
+    // The card keeps capture so it can recognize a hold or a short tap.
+    if (!onCard) e.currentTarget.setPointerCapture(e.pointerId)
   }} onPointerMove={e => {
     const start = swipe.current
     if (!start || start.pointer !== e.pointerId) return
+    if (e.defaultPrevented) return cancel(e)
     const dx = e.clientX - start.x
     const side = dx < 0 ? 1 : -1
     const neighbor = desktops[index + side]
@@ -90,6 +96,7 @@ export function DesktopPager({ desktops, active, blocked, select, render }: Prop
   }} onPointerUp={e => {
     const start = swipe.current
     if (!start || start.pointer !== e.pointerId) return
+    if (e.defaultPrevented) return cancel(e)
     swipe.current = null
     const dx = e.clientX - start.x
     const neighbor = desktops[index + (dx < 0 ? 1 : -1)]

@@ -1,6 +1,7 @@
 import { useTranslation } from './i18n'
 import { cardAppearance } from './appearance'
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type PointerEvent, type ReactNode } from 'react'
+import { widgetControlsSelector } from './widgetControlsSelector'
 import { placementError } from './layout'
 import type { WidgetInstance } from './plugin'
 
@@ -28,14 +29,6 @@ interface Press {
   timer?: number
   dragging: boolean
 }
-
-const controlSelector = [
-  'button', 'a[href]', 'input', 'textarea', 'select', 'label', 'summary', '[tabindex]',
-  '[contenteditable]:not([contenteditable="false"])', '[draggable="true"]', 'audio[controls]', 'video[controls]',
-  ...['button', 'link', 'checkbox', 'radio', 'switch', 'slider', 'spinbutton', 'textbox',
-    'combobox', 'listbox', 'option', 'menuitem', 'menuitemcheckbox', 'menuitemradio', 'tab']
-    .map(role => '[role~="' + role + '"]'),
-].join(',')
 
 export function Grid({ widgets, columns, maxRows, reportRows, reportCellSize, interactive, title, openActions, render, move }: Props) {
   const { t } = useTranslation()
@@ -155,7 +148,7 @@ export function Grid({ widgets, columns, maxRows, reportRows, reportCellSize, in
     const origin = e.target
     if (!e.currentTarget.contains(origin)) return
     const fromHandle = e.currentTarget.querySelector('.handle')!.contains(origin)
-    if (!fromHandle && origin.closest(controlSelector)) return
+    if (!fromHandle && origin.closest(widgetControlsSelector)) return
     if (origin instanceof HTMLElement && origin.classList.contains('widget-scroll')) {
       const bounds = origin.getBoundingClientRect()
       // Leave pointer capture to the browser when pressing a native scrollbar.
@@ -190,14 +183,17 @@ export function Grid({ widgets, columns, maxRows, reportRows, reportCellSize, in
       if (!grip.fromHandle) return cancel(e)
       lift(grip, w)
     }
+    e.preventDefault() // A lifted tile owns this gesture through pointerup.
     setTarget(follow(e, w, grip))
   }
 
   function pointerUp(e: PointerEvent, w: WidgetInstance) {
     const grip = press.current
     if (!grip || grip.pointer !== e.pointerId) return
-    if (grip.dragging) void finish(w, follow(e, w, grip))
-    else if (crossedThreshold(e, grip)) cancel(e)
+    if (grip.dragging) {
+      e.preventDefault()
+      void finish(w, follow(e, w, grip))
+    } else if (crossedThreshold(e, grip)) cancel(e)
     else { clearTimeout(grip.timer); press.current = null }
   }
 
