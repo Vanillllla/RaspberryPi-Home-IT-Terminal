@@ -1,4 +1,4 @@
-import type { WidgetInstance } from './plugin'
+import type { WidgetInstance } from './engine/model'
 
 export function placementError(widgets: WidgetInstance[], columns: number, rows: number,
   id: number, x: number, y: number, width: number, height: number) {

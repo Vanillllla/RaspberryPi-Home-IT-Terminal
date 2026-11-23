@@ -1,0 +1,95 @@
+{
+  "apiVersion": 1,
+  "id": "sample-monitor",
+  "name": {
+    "en": "Sample monitor",
+    "ru": "Монитор значений"
+  },
+  "description": {
+    "en": "Collect a test series on the server every two seconds.",
+    "ru": "Сервер записывает тестовый ряд каждые две секунды."
+  },
+  "version": "1.0.0",
+  "author": "Pi Terminal",
+  "width": 4,
+  "height": 2,
+  "logic": "logic/main.py",
+  "views": {
+    "widget": {
+      "width": 720,
+      "height": 480,
+      "nodes": [
+        {
+          "id": "current",
+          "type": "text",
+          "frame": {
+            "x": 12,
+            "y": 12,
+            "w": 344,
+            "h": 72
+          },
+          "props": {
+            "text": "—",
+            "fontSize": 44
+          },
+          "events": {}
+        },
+        {
+          "id": "caption",
+          "type": "text",
+          "frame": {
+            "x": 12,
+            "y": 100,
+            "w": 344,
+            "h": 52
+          },
+          "props": {
+            "text": "Latest sample"
+          },
+          "events": {}
+        }
+      ]
+    },
+    "details": {
+      "width": 640,
+      "height": 360,
+      "layout": {
+        "mode": "column",
+        "align": "stretch",
+        "gap": 8
+      },
+      "nodes": [
+        {
+          "id": "plot",
+          "type": "line-chart",
+          "frame": {
+            "x": 0,
+            "y": 0,
+            "w": 640,
+            "h": 300
+          },
+          "props": {
+            "label": "Sample history"
+          },
+          "events": {},
+          "grow": true
+        }
+      ]
+    }
+  },
+  "execution": {
+    "mode": "background",
+    "handler": "measure",
+    "interval": 2
+  },
+  "strings": {
+    "Latest sample": {
+      "en": "Latest sample",
+      "ru": "Последнее значение"
+    },
+    "Sample history": {
+      "en": "Sample history",
+      "ru": "История значений"
+    }
+  }
+}

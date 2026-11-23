@@ -55,9 +55,7 @@ export function desktopName(desktop: { id: number; name: string; default_name?: 
   return desktop.default_name ? t('Рабочий стол {number}', { number: desktop.id }) : desktop.name
 }
 
-export function pluginText<T extends { translations?: Partial<Record<Language, { name: string; description: string }>> }>(
-  plugin: T, language: Language,
-): T {
-  const localized = plugin.translations?.[language]
-  return localized ? { ...plugin, ...localized } : plugin
+export function useWords() {
+  const { language } = useTranslation()
+  return (ru: string, en: string) => language === 'ru' ? ru : en
 }

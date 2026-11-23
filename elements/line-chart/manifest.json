@@ -1,0 +1,53 @@
+{
+  "apiVersion": 1,
+  "id": "line-chart",
+  "version": "1.0.0",
+  "name": {
+    "ru": "График",
+    "en": "Line chart"
+  },
+  "description": {
+    "ru": "Строит линию по парам [время Unix, значение].",
+    "en": "Plots pairs of [Unix time, value]."
+  },
+  "defaultFrame": {
+    "x": 0,
+    "y": 0,
+    "w": 360,
+    "h": 180
+  },
+  "properties": {
+    "label": {
+      "type": "string",
+      "label": {
+        "ru": "Подпись",
+        "en": "Label"
+      },
+      "default": "History",
+      "localized": true
+    },
+    "points": {
+      "type": "json",
+      "label": {
+        "ru": "Точки",
+        "en": "Points"
+      },
+      "default": []
+    },
+    "color": {
+      "type": "color",
+      "label": {
+        "ru": "Цвет",
+        "en": "Color"
+      },
+      "default": "#168567"
+    }
+  },
+  "events": {},
+  "strings": {
+    "History": {
+      "ru": "История",
+      "en": "History"
+    }
+  }
+}

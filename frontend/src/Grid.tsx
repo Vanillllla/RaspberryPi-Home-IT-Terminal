@@ -4,7 +4,7 @@ import { cardAppearance } from './appearance'
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type PointerEvent, type ReactNode } from 'react'
 import { widgetControlsSelector } from './widgetControlsSelector'
 import { placementError } from './layout'
-import type { WidgetInstance } from './plugin'
+import type { WidgetInstance } from './engine/model'
 
 interface Props {
   desktop: Desktop
@@ -12,7 +12,7 @@ interface Props {
   widgets: WidgetInstance[]
   columns: number
   maxRows: number
-  reportCellSize?: (size: number) => void
+  details: (widget: WidgetInstance) => (() => void) | undefined
   reportRows?: (rows: number) => void
   interactive: boolean
   title: (widget: WidgetInstance) => string
@@ -37,7 +37,7 @@ interface Press {
   dragging: boolean
 }
 
-export function Grid({ desktop, desktops, widgets: allWidgets, columns, maxRows, reportRows, reportCellSize, interactive, title, openActions, render, move }: Props) {
+export function Grid({ desktop, desktops, widgets: allWidgets, columns, maxRows, reportRows, details, interactive, title, openActions, render, move }: Props) {
   const { t } = useTranslation()
   const board = useRef<HTMLDivElement>(null)
   const viewport = useRef<HTMLDivElement>(null)
@@ -75,7 +75,6 @@ export function Grid({ desktop, desktops, widgets: allWidgets, columns, maxRows,
   const boardWidth = Math.min(preferredWidth, area.height * columns / rows)
   useLayoutEffect(() => { reportRows?.(rows) }, [reportRows, rows])
 
-  useLayoutEffect(() => { if (boardWidth > 0) reportCellSize?.(boardWidth / columns) }, [reportCellSize, boardWidth, columns])
 
   const press = useRef<Press | null>(null)
   const suppressClick = useRef(false)
@@ -331,6 +330,8 @@ export function Grid({ desktop, desktops, widgets: allWidgets, columns, maxRows,
               </button>
               {!cardAppearance(w.appearance).hideTitle &&
                 <span className="card-title" title={title(w)}><span data-palette={cardAppearance(w.appearance).titlePalette}>{title(w)}</span></span>}
+              {details(w) && <button className="detail-trigger" aria-label={t('Подробнее')} title={t('Подробнее')}
+                onClick={details(w)}>↗</button>}
               <button className="widget-actions" aria-label={t('Действия с виджетом')} aria-haspopup="dialog"
                 title={t('Действия с виджетом')} onClick={() => openActions(w.id)}>⋯</button>
             </div>

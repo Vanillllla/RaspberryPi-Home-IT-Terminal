@@ -10,10 +10,10 @@
     "skipLibCheck": true,
     "types": ["vite/client"],
     "paths": {
-      "@terminal/plugin": ["./src/plugin.ts"],
+      "@terminal/element": ["./src/engine/element.ts"],
       "react": ["./node_modules/@types/react"],
       "react/jsx-runtime": ["./node_modules/@types/react/jsx-runtime"]
     }
   },
-  "include": ["src", "../plugins/*/**/*.ts", "../plugins/*/**/*.tsx"]
+  "include": ["src", "../elements/*/**/*.ts", "../elements/*/**/*.tsx"]
 }

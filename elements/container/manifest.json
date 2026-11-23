@@ -1,0 +1,23 @@
+{
+  "apiVersion": 1,
+  "id": "container",
+  "version": "1.0.0",
+  "name": {
+    "ru": "Контейнер",
+    "en": "Container"
+  },
+  "description": {
+    "ru": "Группирует дочерние элементы с фиксированной или гибкой компоновкой.",
+    "en": "Groups child elements in fixed or flexible layouts."
+  },
+  "defaultFrame": {
+    "x": 0,
+    "y": 0,
+    "w": 240,
+    "h": 144
+  },
+  "container": true,
+  "properties": {},
+  "events": {},
+  "strings": {}
+}

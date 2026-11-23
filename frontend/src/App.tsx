@@ -1,16 +1,17 @@
-import { desktopName, pluginText, useTranslation } from './i18n'
-import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
+import { desktopName, useWords, useTranslation } from './i18n'
+import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { api, type Desktop } from './api'
 import { useSharedState } from './sync'
-import { Builder } from './builder/Builder'
-import { TemplateCard } from './builder/TemplateCard'
+import { FitView } from './engine/Renderer'
+import { useElementEvents } from './engine/useElementEvents'
+import type { WidgetInstance, ViewName, Signal } from './engine/model'
 import { DesktopNavigation } from './DesktopNavigation'
 import { DesktopPager } from './DesktopPager'
 import { cardAppearance } from './appearance'
 import { InstanceSettings } from './InstanceSettings'
 import { Grid } from './Grid'
-import { PluginView } from './PluginView'
-import type { WidgetInstance } from './plugin'
+
+const Designer = lazy(() => import('./designer/Designer').then(module => ({ default: module.Designer })))
 
 function Modal({ title, close, children, pending = false }: { title: string; close: () => void; children: ReactNode; pending?: boolean }) {
   const { t } = useTranslation()
@@ -39,17 +40,17 @@ export function App() {
   const [panel, setPanel] = useState<Panel | null>(null)
   const [error, setError] = useState('')
   const [initialError, setInitialError] = useState('')
-  const [cellSize, setCellSize] = useState(80)
+  const w = useWords()
+  const dirty = useRef(false)
   const [rows, setRows] = useState(1)
   const [transfer, setTransfer] = useState<{ id: number; desktop_id: number; slot: number } | null>(null)
   const [busy, setBusy] = useState(false)
-  // A reset belongs to the widget instance, even when its desktop is temporarily unmounted.
-  const [resetTimers] = useState(() => new Map<string, number>())
-  const [inputWrites] = useState(() => new Map<number, Promise<void>>())
-  useEffect(() => () => {
-    resetTimers.forEach(timer => window.clearTimeout(timer))
-    resetTimers.clear()
-  }, [resetTimers])
+  const events = useElementEvents(setError)
+  const library = useMemo(() => new Map(data?.elements.map(e => [e.id, e])), [data?.elements])
+  const projects = useMemo(() => new Map(data?.projects.map(p => [p.id, p])), [data?.projects])
+  const tiles = useMemo(() => data?.widgets.map(item => ({
+    ...item, appearance: { ...projects.get(item.project_id)?.appearance, ...item.appearance },
+  })) ?? [], [data?.widgets, projects])
   const [theme, setTheme] = useState<Theme>(() => {
     try { return localStorage.getItem(themeKey) === 'dark' ? 'dark' : 'light' }
     catch { return 'light' }
@@ -152,33 +153,26 @@ export function App() {
     })
   }
 
-  function view(widget: WidgetInstance, mode: 'Widget' | 'Details') {
-    const manifest = data?.plugins.find(p => p.id === widget.plugin_id)
-    if (!manifest) return <p>{widget.plugin_id.startsWith('template:') ? t('Шаблон недоступен.') : t('Плагин недоступен.')} {t('Размещение сохранено.')}</p>
-    return <PluginView instance={widget} mode={mode} saveSettings={async settings => {
-      await api('widgets/' + widget.id + '/settings', 'PUT', { settings })
+  function send(widget: WidgetInstance, event: Signal) {
+    const revision = projects.get(widget.project_id)?.revision
+    events.dispatch(widget.id, event, async () => {
+      await api('widgets/' + widget.id + '/events', 'POST', { ...event, revision })
       await reload()
-    }} />
+    })
   }
 
-  function renderCard(widget: WidgetInstance) {
-    const capabilities = data?.plugins.find(p => p.id === widget.plugin_id)?.capabilities ?? []
-    const template = data?.templates.find(t => t.id === widget.plugin_id)
-    const alignment = cardAppearance(widget.appearance)
-    return <div className="widget-content" data-horizontal={alignment.horizontalAlign} data-vertical={alignment.verticalAlign}>
-      {template ? <TemplateCard key={template.revision} template={template} instance={widget}
-        resetTimers={resetTimers} inputWrites={inputWrites}
-        active={desktop?.id === widget.desktop_id && panel?.mode !== 'builder'} reload={reload} /> : view(widget, 'Widget')}
-      {capabilities.includes('details') && <button onClick={() => setPanel({ mode: 'Details', id: widget.id })}>
-        {t('Подробнее')}
-      </button>}
-    </div>
+  function view(widget: WidgetInstance, name: ViewName) {
+    const project = projects.get(widget.project_id)
+    if (!project) return <p>{w('Проект недоступен', 'Project unavailable')} · {widget.project_id}. {t('Размещение сохранено.')}</p>
+    if (!project.views[name]) return null
+    const visible = name !== 'widget' || (!panel && desktop?.id === widget.desktop_id)
+    return <><FitView project={project} name={name} library={library} properties={events.properties(widget.id, widget.properties)}
+      send={e => send(widget, e)} presence={visible ? widget.id : undefined} />
+      {widget.error && <small className="engine-error" role="alert">{widget.error}</small>}</>
   }
 
-  const localizedPlugins = data?.plugins.map(plugin => pluginText(plugin, language)) ?? []
-  function defaultTitle(w: WidgetInstance) {
-    return data?.templates.find(t => t.id === w.plugin_id)?.name
-      ?? localizedPlugins.find(p => p.id === w.plugin_id)?.name ?? w.plugin_id
+  function defaultTitle(item: WidgetInstance) {
+    return projects.get(item.project_id)?.name[language] || item.project_id
   }
   const opened = panel && 'id' in panel && data?.widgets.find(w => w.id === panel.id)
   return <>
@@ -211,12 +205,12 @@ export function App() {
         </div>
         <DesktopPager desktops={data.desktops} active={desktop} select={select} blocked={panel !== null} animateNavigation={transfer?.desktop_id !== desktop.id}
           render={(page, interactive) => (
-            <Grid reportCellSize={page.id === desktop.id ? setCellSize : undefined} columns={data.columns} maxRows={data.max_rows} reportRows={page.id === desktop.id ? setRows : undefined} interactive={interactive && !busy} widgets={transfer ? data.widgets.map(w => w.id === transfer.id ? { ...w, ...transfer } : w) : data.widgets}
+            <Grid details={w => projects.get(w.project_id)?.views.details ? () => setPanel({ mode: 'Details', id: w.id }) : undefined} columns={data.columns} maxRows={data.max_rows} reportRows={page.id === desktop.id ? setRows : undefined} interactive={interactive && !busy} widgets={transfer ? tiles.map(w => w.id === transfer.id ? { ...w, ...transfer } : w) : tiles}
               desktop={page} desktops={data.desktops}
               title={w => cardAppearance(w.appearance).customTitle || defaultTitle(w)}
               openActions={id => setPanel({ mode: 'actions', id })}
               move={moveWidget}
-              render={renderCard} />
+              render={w => view(w, 'widget')} />
           )} />
       </> : initialError
         ? <p role="alert">{initialError} <button onClick={() => void mutate(async () => {})}>{t('Обновить')}</button></p>
@@ -319,21 +313,24 @@ export function App() {
           onChange={() => { chooseLanguage('en'); setError('') }} /><span lang="en">English</span></label>
       </fieldset>
     </Modal>}
-    {panel?.mode === 'builder' && data && <Modal title={t('Конструктор виджетов')} pending={busy} close={() => setPanel(null)}>
-      <Builder cellSize={cellSize} columns={data.columns} maxRows={data.max_rows} templates={data.templates} busy={busy} setBusy={setBusy}
-        refresh={reload}
-        saved={async () => {
-          setPanel(null)
-          await reload().catch(() => setError(t('Не удалось обновить рабочий стол')))
-        }} />
+    {panel?.mode === 'builder' && data && <Modal title={t('Конструктор виджетов')} pending={busy}
+      close={() => {
+        if (!dirty.current || window.confirm(w('Закрыть несохранённый проект?', 'Close the unsaved project?'))) {
+          dirty.current = false; setPanel(null)
+        }
+      }}>
+      <Suspense fallback={<p aria-busy="true">…</p>}>
+        <Designer catalog={data} library={library} refresh={reload} setBusy={setBusy} dirty={dirty} />
+      </Suspense>
     </Modal>}
     {panel?.mode === 'add' && data && desktop && <Modal title={t('Добавить виджет')} close={() => { setError(''); setPanel(null) }}>
-      {data.plugins.length === 0 && data.templates.length === 0 && <p>{t('Доступных плагинов пока нет.')}</p>}
-      {[...localizedPlugins, ...data.templates.map(template => ({ id: template.id, name: template.name, description: template.description || t('Пользовательский шаблон') }))].map(p => <button className="choice" key={p.id} disabled={busy}
+      {data.projects.length === 0 && <p>{w('Библиотека проектов пуста.', 'The project library is empty.')}</p>}
+      {data.projects.map(p => <button className="choice" key={p.id} disabled={busy}
         onClick={() => void mutate(async () => {
-          await api('desktops/' + desktop.id + '/widgets', 'POST', { plugin_id: p.id, rows })
+          await api('desktops/' + desktop.id + '/widgets', 'POST', { project_id: p.id, rows })
           setPanel(null)
-        })}><strong>{p.name}</strong><small>{p.description}</small></button>)}
+        })}>{p.icon && <img width="28" height="28" alt="" src={'/api/projects/' + p.id + '/assets/' + p.icon.split('/').map(encodeURIComponent).join('/')} />}
+          <strong>{p.name[language]}</strong><small>{p.description[language]} · {p.width}×{p.height}</small></button>)}
       {error && <p role="alert">{error}</p>}
     </Modal>}
     {opened && panel.mode === 'actions' && <Modal title={t('Действия с виджетом')} close={() => setPanel(null)}>
@@ -344,19 +341,10 @@ export function App() {
       })}>{t('Удалить виджет')}</button>
     </Modal>}
     {data && desktop && opened && panel.mode !== 'actions' && <Modal title={panel.mode === 'Settings' ? t('Настройки') : t('Подробнее')}
-      pending={busy} close={() => setPanel(null)}>{panel.mode === 'Details' ? <div className="details-view">{view(opened, 'Details')}</div> :
-        <InstanceSettings key={opened.id} widget={opened} defaultTitle={defaultTitle(opened)} busy={busy}
-          pluginSettings={data.plugins.some(p => p.id === opened.plugin_id && p.capabilities.includes('settings'))}
-          refresh={async () => (await reload()).widgets.find(w => w.id === opened.id)}
-          save={async draft => {
-            setBusy(true)
-            try {
-              await api('widgets/' + opened.id + '/configuration', 'PUT', {
-                ...draft, rows: opened.desktop_id === desktop.id ? rows : undefined,
-              })
-              await reload()
-              setPanel(null)
-            } finally { setBusy(false) }
-          }} />}</Modal>}
+      pending={busy} close={() => setPanel(null)}>{panel.mode === 'Details' ? <div className="details-view">{view(opened, 'details')}</div> :
+        <InstanceSettings key={opened.id} widget={opened} project={projects.get(opened.project_id)}
+          saved={async () => { await reload(); setPanel(null) }}>
+          {projects.get(opened.project_id)?.views.settings && <div className="instance-view">{view(opened, 'settings')}</div>}
+        </InstanceSettings>}</Modal>}
   </>
 }

@@ -1,0 +1,126 @@
+{
+  "apiVersion": 1,
+  "id": "signal-lab",
+  "name": {
+    "en": "Signal bench",
+    "ru": "Проверка сигнала"
+  },
+  "description": {
+    "en": "Read two controls and apply their values.",
+    "ru": "Кнопка читает переключатель и слайдер и обновляет индикатор."
+  },
+  "version": "1.0.0",
+  "author": "Pi Terminal",
+  "width": 4,
+  "height": 2,
+  "logic": "logic/main.py",
+  "views": {
+    "widget": {
+      "width": 720,
+      "height": 480,
+      "nodes": [
+        {
+          "id": "power",
+          "type": "switch",
+          "frame": {
+            "x": 8,
+            "y": 8,
+            "w": 156,
+            "h": 44
+          },
+          "props": {
+            "label": "Power",
+            "value": true
+          },
+          "events": {}
+        },
+        {
+          "id": "level",
+          "type": "slider",
+          "frame": {
+            "x": 172,
+            "y": 8,
+            "w": 192,
+            "h": 44
+          },
+          "props": {
+            "label": "Level",
+            "value": 35
+          },
+          "events": {}
+        },
+        {
+          "id": "apply",
+          "type": "button",
+          "frame": {
+            "x": 8,
+            "y": 68,
+            "w": 140,
+            "h": 48
+          },
+          "props": {
+            "text": "Apply"
+          },
+          "events": {
+            "onClick": "apply_signal"
+          }
+        },
+        {
+          "id": "lamp",
+          "type": "indicator",
+          "frame": {
+            "x": 172,
+            "y": 74,
+            "w": 180,
+            "h": 40
+          },
+          "props": {
+            "label": "Ready"
+          },
+          "events": {}
+        },
+        {
+          "id": "result",
+          "type": "text",
+          "frame": {
+            "x": 8,
+            "y": 132,
+            "w": 342,
+            "h": 44
+          },
+          "props": {
+            "text": "—",
+            "fontSize": 24
+          },
+          "events": {}
+        }
+      ]
+    }
+  },
+  "strings": {
+    "Power": {
+      "en": "Power",
+      "ru": "Питание"
+    },
+    "Level": {
+      "en": "Level",
+      "ru": "Уровень"
+    },
+    "Apply": {
+      "en": "Apply",
+      "ru": "Применить"
+    },
+    "Ready": {
+      "en": "Ready",
+      "ru": "Готов"
+    },
+    "On": {
+      "en": "On",
+      "ru": "Включён"
+    },
+    "Off": {
+      "en": "Off",
+      "ru": "Выключен"
+    }
+  }
+}

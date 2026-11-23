@@ -1,0 +1,45 @@
+{
+  "apiVersion": 1,
+  "id": "indicator",
+  "version": "1.0.0",
+  "name": {
+    "ru": "Индикатор",
+    "en": "Indicator"
+  },
+  "description": {
+    "ru": "Показывает состояние цветом и подписью.",
+    "en": "Shows a state as a color and caption."
+  },
+  "defaultFrame": {
+    "x": 0,
+    "y": 0,
+    "w": 136,
+    "h": 40
+  },
+  "properties": {
+    "label": {
+      "type": "string",
+      "label": {
+        "ru": "Подпись",
+        "en": "Label"
+      },
+      "default": "Indicator",
+      "localized": true
+    },
+    "color": {
+      "type": "color",
+      "label": {
+        "ru": "Цвет",
+        "en": "Color"
+      },
+      "default": "#168567"
+    }
+  },
+  "events": {},
+  "strings": {
+    "Indicator": {
+      "ru": "Индикатор",
+      "en": "Indicator"
+    }
+  }
+}

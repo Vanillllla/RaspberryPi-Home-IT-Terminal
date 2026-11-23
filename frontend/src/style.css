@@ -49,7 +49,7 @@ button:disabled { opacity: .6; cursor: wait; }
 .primary, [aria-current=page] { background: var(--accent); color: var(--on-accent); border-color: var(--accent); }
 .toolbar { display: grid; grid-template-columns: auto minmax(0,1fr) auto; grid-template-areas: "tab widgets settings" "title title title"; align-items: center; gap: .4rem .6rem; padding-bottom: .75rem; }
 .toolbar h1 { grid-area: title; text-align: center; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
-.toolbar .widget-buttons { grid-area: widgets; }
+.toolbar .widget-buttons { grid-area: widgets; display: flex; flex-wrap: wrap; justify-content: flex-end; gap: .4rem; }
 .nav-action { grid-area: settings; width: 44px; height: 44px; padding: 0; display: grid; place-items: center; }
 .desktop-navigation { grid-area: tab; align-self: start; position: relative; }
 .desktop-tab { position: relative; z-index: 6; display: flex; align-items: center; gap: .55rem; border-radius: 0 0 10px 10px; touch-action: none; user-select: none; }
@@ -140,37 +140,12 @@ dialog::backdrop { background: var(--backdrop); }
 [data-palette="yellow"] { --tint: #efbe26; }
 [data-palette="orange"] { --tint: #f18a33; }
 
-.card-settings, .card-settings > form, .instance-settings { display: grid; gap: .6rem; }
-.card-settings, .card-settings > form { gap: 1rem; }
-.instance-settings, .palette-picker { margin: 0; padding: 0; min-width: 0; border: 0; }
-.instance-settings > legend, .plugin-settings h3 { padding: 0 0 .5rem; margin: 0; font-size: 1rem; font-weight: 650; }
-.instance-settings > label { display: flex; align-items: center; gap: .6rem; justify-content: space-between; }
-.instance-settings > .hide-card-title { justify-content: flex-start; min-height: 44px; }
-.instance-settings input[type="number"] { width: 5rem; }
-.instance-settings input[type="text"] { min-width: 0; flex: 1; }
-.instance-settings :is(input[type="number"], input[type="text"], select) { min-height: 44px; font: inherit; border: 1px solid var(--line); border-radius: 8px; padding: .5rem; }
-.palette-picker { display: flex; flex-wrap: wrap; }
-.palette-picker legend { padding: 0; }
-.palette-picker label { position: relative; display: grid; place-items: center; width: 44px; height: 44px; cursor: pointer; }
-.palette-picker input { position: absolute; inset: 0; margin: 0; opacity: 0; cursor: inherit; }
-.palette-picker span { width: 32px; height: 32px; display: grid; place-items: center; border-radius: 50%; border: 1px solid var(--line); font-weight: 700; pointer-events: none; }
-.palette-picker input:checked + span, .palette-picker input:focus-visible + span { outline: 2px solid var(--accent); outline-offset: 2px; }
-.palette-picker input:focus-visible + span { outline-style: dashed; }
-.plugin-settings form :is(button:not([type]), button[type="submit"], input[type="submit"]) { display: none; }
-
 .widget-scroll { flex: 1; min-height: 0; display: flex; flex-direction: column; overflow: auto; }
 .widget-scroll::-webkit-scrollbar { width: 5px; height: 5px; }
 .widget-scroll::-webkit-scrollbar-thumb { background: var(--muted); border-radius: 999px; }
 @supports not selector(::-webkit-scrollbar) {
   .widget-scroll { scrollbar-width: thin; scrollbar-color: var(--muted) transparent; }
 }
-.widget-content { flex: none; display: flow-root; max-width: 100%; }
-.widget-content[data-horizontal=left] { align-self: flex-start; }
-.widget-content[data-horizontal=center] { align-self: center; }
-.widget-content[data-horizontal=right] { align-self: flex-end; }
-.widget-content[data-vertical=center] { margin-block: auto; }
-.widget-content[data-vertical=bottom] { margin-block-start: auto; }
-
 .theme-settings, .desktop-options { margin: 0; padding: .4rem 1rem; border: 1px solid var(--line); border-radius: 9px; }
 .theme-settings legend, .desktop-options legend { padding-inline: .3rem; font-weight: 600; }
 .theme-settings label, .desktop-options label { display: flex; align-items: center; gap: .6rem; min-height: 44px; cursor: pointer; }

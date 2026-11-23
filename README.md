@@ -1,181 +1,115 @@
 # RaspberryPi-Home-IT-Terminal
 
-English | [Русский](#русский)
+[Русский](#русский) · [English](#english)
 
-## Project description
+## Русский
 
-RaspberryPi-Home-IT-Terminal is an open-source modular dashboard for a Raspberry Pi 5 touchscreen. It provides multiple desktops with draggable, resizable widgets, a visual widget/template builder, and independent plugins (including a clock and developer demo). Functional settings, layout, and template data are stored in SQLite. The backend uses Python/FastAPI; the frontend uses React/TypeScript with Vite.
+Сенсорная панель для Raspberry Pi 5 с несколькими рабочими столами и визуальным конструктором. Виджет состоит из декларативных представлений Widget, Details, Settings и модуля Python. Один проект можно разместить на нескольких столах. Библиотека элементов расширяется отдельными React-модулями.
 
-The current repository supports local development on Debian/WSL2 and Linux, including Raspberry Pi OS on a Raspberry Pi 5. It is **not yet a finished, automatically booting Raspberry Pi kiosk**: systemd and Chromium kiosk startup must be configured separately. The dashboard has **no authentication** and should only be used on the device or on a trusted LAN/VPN, never directly exposed to the public internet.
+### Запуск в Debian WSL2
 
-Technical documentation: [plugins](docs/eng/PLUGINS.md) · [template authoring](docs/eng/WIDGET_AUTHORING.md) · [project vision](docs/eng/PROJECT_VISION.md) · [roadmap](docs/eng/ROADMAP.md).
-
-Optional widgets: [WireGuard](plugins/wireguard/README.md#english) and [sing-box latency](plugins/sing-box-latency/README.md#english).
-
-## First launch
-
-### 1. Prepare the system
-
-Use **Debian under WSL2**, Debian Linux, or **64-bit Raspberry Pi OS** on Raspberry Pi 5. You need Python **3.11+**, `python3-venv`, `git`, and Node.js **22.12+** (Node 22 LTS) with npm. Vite 7 also supports Node.js 20.19+, but Node 22 is recommended. Install Node **inside Linux**, not from the Windows installation mounted in WSL.
-
-```bash
-sudo apt update
-sudo apt install -y git python3 python3-venv python3-pip curl ca-certificates iputils-ping
-python3 --version
-node --version
-npm --version
-node -p process.platform
-```
-
-If Node.js/npm are missing or too old, install a supported Node.js release with [nvm](https://github.com/nvm-sh/nvm#installing-and-updating) in the Linux shell, then run `nvm install 22` and `nvm use 22`. In WSL the last command above must print `linux`, not `win32`. Node 22.12 or newer is required within the 22.x series.
-
-Clone the project (or go to your existing checkout):
-
-```bash
-git clone https://github.com/Vanillllla/RaspberryPi-Home-IT-Terminal.git
-cd RaspberryPi-Home-IT-Terminal
-```
-
-### 2. Install and start the backend — terminal 1
-
-From the **repository root**:
+Нужны Python 3.11+, python3-venv, Node.js 22.12+ и npm, установленные внутри Linux. Выполняйте команды из корня репозитория. Для первого запуска:
 
 ```bash
 python3 -m venv .venv
 .venv/bin/python -m pip install -r backend/requirements.txt
+npm --prefix frontend ci
+```
+
+В первом терминале запустите один процесс FastAPI:
+
+```bash
 .venv/bin/python -m uvicorn backend.main:app --host 127.0.0.1 --port 8000
 ```
 
-Keep this terminal open. Initial startup creates the SQLite database at `backend/data/terminal.sqlite3` (override with `TERMINAL_DB` if needed). The backend API is available at `http://127.0.0.1:8000/docs`. The isolated Python action runner uses Linux features and `libseccomp2`; install it on Debian/Raspberry Pi OS if needed (`sudo apt install -y libseccomp2`). Untrusted Python code must not be run on this development-oriented system.
-
-### 3. Install and start the frontend — terminal 2
-
-From the **same repository root** in a second Linux terminal:
+Во втором запустите интерфейс:
 
 ```bash
-npm --prefix ./frontend ci
-npm --prefix ./frontend run dev
+npm --prefix frontend run dev
 ```
 
-Open `http://localhost:5173` in a browser **on the same device**, or from a Windows browser with WSL2 localhost forwarding. Check `http://localhost:5173/api/state` to verify the Vite proxy can reach FastAPI. Both services are bound to loopback by default, so other LAN devices cannot connect without an explicitly configured trusted-network proxy or forwarding. On Raspberry Pi OS open the URL in Chromium; **kiosk autostart is not configured by this repository**.
+Откройте http://localhost:5173 в браузере Windows. Кнопка «+ Виджет» открывает библиотеку, «Создать виджет» — конструктор и редактор существующих проектов. Через настройки панели доступны русский и английский языки. Ctrl + ←/→ переключает столы, ручка на карточке позволяет её переместить. Для сенсорного ввода поддерживаются свайп и удержание. Оба сервиса можно остановить через Ctrl+C. Для повторного запуска нужны только две команды запуска.
 
-Stop either running process with Ctrl+C.
+### Архитектура
 
-## Synchronization between devices
+| Каталог | Назначение |
+| --- | --- |
+| widgets/ | Папка проекта с manifest.json, исходником Python и ресурсами |
+| elements/ | Контракт свойств и событий в manifest.json, React-реализация в Component.tsx |
+| integrations/ | Необязательные установленные на хосте описания операций для Python |
+| backend/ | FastAPI, публикация проектов, планировщик, процессы Python, SQLite и уведомления WebSocket |
+| frontend/src/engine/ | Единый рендерер представлений и контракт React-элемента |
+| frontend/src/designer/ | Холст, дерево, палитра, инспектор, редактор Python, справка и предпросмотр |
+| archive/ | Исторические исходники из v0.4.0 |
 
-Open the same dashboard server on each device. Changes to desktops, widgets, templates, integrations, and supported plugin profiles appear automatically. Each browser keeps its own active desktop, theme, language, and open dialogs. When two clients edit the same field, the editor keeps the draft and offers to load the current value.
+SQLite по умолчанию создаётся в backend/data/engine.sqlite3. Прежняя terminal.sqlite3 остаётся в своём файле. В новой базе находятся экземпляры, отдельные настройки и оформление, сохраняемые свойства и история. Временные свойства живут в памяти сервера. Изменения файлов через конструктор видны сразу во всех экземплярах. Изменения вручную на диске и новые пакеты обнаруживаются при запуске backend. После добавления React-элемента перезапустите Vite или пересоберите frontend.
 
-The Vite development proxy forwards both REST and `/api/events` (WebSocket) to FastAPI. Use a single FastAPI process. A trusted-network reverse proxy must also forward WebSocket upgrades for `/api/events`. The browser reconnects automatically and refreshes saved state after a connection loss. Browser timers and transient plugin state remain local.
+Снимок состояния доступен через GET /api/state, описание REST — по адресу http://127.0.0.1:8000/docs. Существующий канал /api/events сообщает клиентам о новых ревизиях и принимает видимость их экземпляров. Браузер сохраняет собственную навигацию и черновики. В режиме «В фоне» сервер продолжает выполнять Python при закрытых браузерах. Для локальной проверки используйте один процесс Uvicorn. При проксировании внутри доверенной сети передавайте и HTTP, и WebSocket Upgrade. Авторский Python выполняется с правами пользователя backend. Платформа предназначена для доверенного кода и доверенной сети.
 
-For automated backend tests, install `.venv/bin/python -m pip install -r backend/requirements-test.txt` before running the test suite.
+Настраиваемые пути — TERMINAL_DB, TERMINAL_WIDGETS, TERMINAL_ELEMENTS и TERMINAL_INTEGRATIONS. TERMINAL_API меняет адрес backend в прокси Vite. Каталог модулей в сборке Vite — elements/ в корне проекта. При запуске дополнительного стенда задайте отдельные порты, базу и каталог проектов.
 
-## Subsequent launches
+[Руководство автора виджетов](docs/ru/WIDGET_AUTHORING.md) · [Разработка элементов](docs/ru/ELEMENTS.md) · [Справочник Python API](docs/ru/PYTHON_API.md) · [Концепция](docs/ru/PROJECT_VISION.md) · [Дорожная карта](docs/ru/ROADMAP.md)
 
-Open two Linux terminals in the existing repository checkout. No reinstall is necessary unless dependencies have changed.
-
-**Terminal 1 (backend):**
+### Проверки
 
 ```bash
-cd RaspberryPi-Home-IT-Terminal
-.venv/bin/python -m uvicorn backend.main:app --host 127.0.0.1 --port 8000
+.venv/bin/python -m pip install -r backend/requirements-test.txt
+.venv/bin/python -m unittest discover -s backend/tests -v
+npm --prefix frontend run build
 ```
 
-**Terminal 2 (frontend):**
+Проверьте четыре примера из библиотеки. «Проверка сигнала» связывает входы с обработчиком, «Панель станции» показывает общее состояние трёх представлений, «Монитор значений» пишет историю в фоне, «Круговая шкала» использует самостоятельный элемент. Тесты backend используют временные каталоги и базы.
 
-```bash
-cd RaspberryPi-Home-IT-Terminal
-npm --prefix ./frontend run dev
-```
+Для проверки конструктора запустите панель и выполните в Windows PowerShell из корня проекта команду `node --test frontend/tests/designer.test.mjs`. Требуются Node.js и Microsoft Edge в Windows. Тест собирает черновик из палитры, меняет высоту холста, создаёт Python-обработчик и проверяет быстрые переключения и отклонённый ввод в предпросмотре. Адрес панели задаётся через `TERMINAL_UI_URL`, канал установленного браузера — через `PLAYWRIGHT_CHANNEL`.
 
-Then open `http://localhost:5173`. Run `npm --prefix ./frontend ci` after changes to frontend dependencies, and `.venv/bin/python -m pip install -r backend/requirements.txt` when Python dependencies change. To check the source without launching the UI, run `npm --prefix ./frontend run build` and `.venv/bin/python -m unittest discover -s backend/tests` from the root.
+## English
 
----
+A touchscreen dashboard for Raspberry Pi 5 with multiple desktops and a visual widget designer. Each project contains declarative Widget, Details and Settings views and a Python logic module. Place the same project multiple times for independent instances. Separate React modules extend the element palette.
 
-# Русский
+### Run on Debian under WSL2
 
-## Описание проекта
-
-**RaspberryPi-Home-IT-Terminal** — открытая модульная информационная панель для Raspberry Pi 5 с сенсорным экраном. Приложение поддерживает несколько рабочих столов, перемещение и изменение размера виджетов, визуальный конструктор шаблонов и независимые плагины (в том числе часы и демонстрационный виджет). Расположение, настройки и шаблоны сохраняются в SQLite. Серверная часть написана на Python/FastAPI, интерфейс — на React/TypeScript с Vite.
-
-Текущий проект можно запускать локально в Debian/WSL2 и Linux, в том числе на Raspberry Pi OS для Raspberry Pi 5. **Автоматический запуск в режиме киоска пока не реализован**: systemd и запуск Chromium в kiosk mode требуется настроить отдельно. **Авторизации нет** — не публикуйте интерфейс в интернет, используйте его только локально или в доверенной LAN/VPN.
-
-Техническая документация: [плагины](docs/ru/PLUGINS.md) · [создание шаблонов](docs/ru/WIDGET_AUTHORING.md) · [концепция](docs/ru/PROJECT_VISION.md) · [план развития](docs/ru/ROADMAP.md).
-
-Дополнительные виджеты: [WireGuard](plugins/wireguard/README.md#русский) и [проверка задержки sing-box](plugins/sing-box-latency/README.md#русский).
-
-## Первый запуск
-
-### 1. Подготовка системы
-
-Подойдут **Debian в WSL2**, Debian Linux или **64-битная Raspberry Pi OS** на Raspberry Pi 5. Нужны Python **3.11+**, `python3-venv`, `git`, Node.js **22.12+** (ветка Node 22 LTS) и npm. Vite 7 также допускает Node.js 20.19+, но рекомендуется Node 22. В WSL устанавливайте Node **в Linux**, а не используйте Windows-версию из подключённого диска.
-
-```bash
-sudo apt update
-sudo apt install -y git python3 python3-venv python3-pip curl ca-certificates iputils-ping
-python3 --version
-node --version
-npm --version
-node -p process.platform
-```
-
-Если Node.js/npm отсутствуют или слишком старые, установите актуальную поддерживаемую версию Node через [nvm](https://github.com/nvm-sh/nvm#installing-and-updating) в терминале Linux, затем выполните `nvm install 22` и `nvm use 22`. В WSL последняя проверка должна вывести `linux`, а не `win32`. Для ветки 22 необходима версия не ниже 22.12.
-
-Клонируйте проект (или откройте уже существующую копию):
-
-```bash
-git clone https://github.com/Vanillllla/RaspberryPi-Home-IT-Terminal.git
-cd RaspberryPi-Home-IT-Terminal
-```
-
-### 2. Установка и запуск backend — терминал 1
-
-Из **корня репозитория**:
+Install Python 3.11+, python3-venv, Node.js 22.12+ and npm inside Linux. From the repository root, prepare the environment once:
 
 ```bash
 python3 -m venv .venv
 .venv/bin/python -m pip install -r backend/requirements.txt
+npm --prefix frontend ci
+```
+
+Run one backend process in the first terminal:
+
+```bash
 .venv/bin/python -m uvicorn backend.main:app --host 127.0.0.1 --port 8000
 ```
 
-Оставьте терминал открытым. При первом запуске создаётся база SQLite `backend/data/terminal.sqlite3` (путь можно изменить переменной `TERMINAL_DB`). Документация API доступна по адресу `http://127.0.0.1:8000/docs`. Изолированный обработчик Python использует механизмы Linux и `libseccomp2`; при необходимости установите библиотеку (`sudo apt install -y libseccomp2`). Не запускайте в этой системе Python-код от недоверенных авторов.
-
-### 3. Установка и запуск frontend — терминал 2
-
-Из **того же корня репозитория**, во втором терминале Linux:
+Start the frontend in the second terminal:
 
 ```bash
-npm --prefix ./frontend ci
-npm --prefix ./frontend run dev
+npm --prefix frontend run dev
 ```
 
-Откройте `http://localhost:5173` в браузере **на том же устройстве** либо в браузере Windows при стандартном пробросе localhost из WSL2. Проверьте `http://localhost:5173/api/state`: запрос должен пройти через прокси Vite в FastAPI. По умолчанию оба сервиса слушают только loopback — для доступа из LAN нужна отдельная настройка безопасного проброса или прокси в доверенной сети. На Raspberry Pi OS откройте страницу в Chromium; **автозапуск киоска в репозитории пока не настроен**.
+Open http://localhost:5173 in a Windows browser. + Widget opens the library. Create widget opens the designer for new and existing projects. Panel settings switches between English and Russian. Use Ctrl + Left/Right or swipe to switch desktops. Use the card handle to move an instance. Stop services with Ctrl+C. Subsequent sessions require just the two start commands.
 
-Для остановки каждого процесса нажмите Ctrl+C.
+### Project layout
 
-## Синхронизация между устройствами
+widgets/ holds project folders with manifests, Python and assets. elements/ holds independent element manifests and React components. Optional host adapters live in integrations/. backend/ handles FastAPI, project publication, scheduling, Python execution, SQLite and shared WebSocket notifications. frontend/src/engine/ provides the renderer. frontend/src/designer/ provides the canvas, tree, palette, inspector, Python editor, reference and preview. archive/ contains historical v0.4.0 source.
 
-Откройте панель одного и того же сервера на каждом устройстве. Рабочие столы, виджеты, шаблоны, интеграции и профили поддерживаемых плагинов обновляются автоматически. Активный стол, тема, язык и открытые окна остаются локальными. Если два клиента правят одно и то же поле, редактор сохраняет черновик и предлагает загрузить актуальные данные.
+The default database is backend/data/engine.sqlite3. The old terminal.sqlite3 remains separate. SQLite holds placements, instance configuration, appearance overrides, durable properties and samples. Temporary properties live in server memory. Saving in the designer updates all instances live. Restart the backend after manual edits or package installation. Restart Vite or rebuild the frontend after adding React elements.
 
-Vite проксирует REST-запросы и WebSocket `/api/events` в FastAPI. Запускайте один процесс FastAPI. Обратный прокси в доверенной сети также должен поддерживать обновление соединения до WebSocket на `/api/events`. При разрыве браузер автоматически переподключается и запрашивает сохранённое состояние. Таймеры в браузере и временное состояние плагинов остаются локальными.
+GET /api/state returns the shared snapshot. Open http://127.0.0.1:8000/docs for the REST schema. The existing /api/events WebSocket delivers revision notifications and receives instance visibility. Each browser retains its local navigation and drafts. Background-mode handlers run on the host after browsers close. Use one Uvicorn process. Forward both HTTP and WebSocket upgrades when serving a trusted network. Author Python runs with the backend account's privileges. Operate the dashboard with trusted code on a trusted network.
 
-Перед запуском автоматических тестов backend установите зависимости командой `.venv/bin/python -m pip install -r backend/requirements-test.txt`.
+Configure paths with TERMINAL_DB, TERMINAL_WIDGETS, TERMINAL_ELEMENTS and TERMINAL_INTEGRATIONS. TERMINAL_API sets the Vite backend proxy target. Vite bundles modules from elements/ in the repository root. Use separate ports, a database and a widget directory for a second test installation.
 
-## Последующие запуски
+[Widget authoring](docs/eng/WIDGET_AUTHORING.md) · [Element development](docs/eng/ELEMENTS.md) · [Python API reference](docs/eng/PYTHON_API.md) · [Project vision](docs/eng/PROJECT_VISION.md) · [Roadmap](docs/eng/ROADMAP.md)
 
-Откройте два терминала Linux в уже скачанном проекте. Повторно устанавливать зависимости не нужно, если они не менялись.
-
-**Терминал 1 (backend):**
+### Verification
 
 ```bash
-cd RaspberryPi-Home-IT-Terminal
-.venv/bin/python -m uvicorn backend.main:app --host 127.0.0.1 --port 8000
+.venv/bin/python -m pip install -r backend/requirements-test.txt
+.venv/bin/python -m unittest discover -s backend/tests -v
+npm --prefix frontend run build
 ```
 
-**Терминал 2 (frontend):**
+Exercise Signal bench for cross-element reads, Station panel for three-view state, Sample monitor for background history and Gauge control for an independently installed module. Backend tests use temporary paths and databases.
 
-```bash
-cd RaspberryPi-Home-IT-Terminal
-npm --prefix ./frontend run dev
-```
-
-Откройте `http://localhost:5173`. После обновления frontend-зависимостей выполните `npm --prefix ./frontend ci`, а после изменения Python-зависимостей — `.venv/bin/python -m pip install -r backend/requirements.txt`. Для проверки исходников без запуска интерфейса из корня репозитория выполните `npm --prefix ./frontend run build` и `.venv/bin/python -m unittest discover -s backend/tests`.
+With the dashboard running, execute `node --test frontend/tests/designer.test.mjs` from the project root in Windows PowerShell with Node.js and Microsoft Edge installed. The test builds an unsaved draft from the palette, changes the canvas height, creates a Python handler and checks rapid toggles and rejected input in preview. Configure the dashboard URL with `TERMINAL_UI_URL` and the installed browser channel with `PLAYWRIGHT_CHANNEL`.

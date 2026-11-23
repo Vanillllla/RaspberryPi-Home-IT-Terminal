@@ -1,0 +1,53 @@
+{
+  "apiVersion": 1,
+  "id": "divider",
+  "version": "1.0.0",
+  "name": {
+    "ru": "Разделитель",
+    "en": "Divider"
+  },
+  "description": {
+    "ru": "Разделяет группы элементов линией.",
+    "en": "Separates groups with a line."
+  },
+  "defaultFrame": {
+    "x": 0,
+    "y": 0,
+    "w": 160,
+    "h": 12
+  },
+  "properties": {
+    "color": {
+      "type": "color",
+      "label": {
+        "ru": "Цвет",
+        "en": "Color"
+      },
+      "default": "#94a3b8"
+    },
+    "orientation": {
+      "type": "choice",
+      "label": {
+        "ru": "Ориентация",
+        "en": "Orientation"
+      },
+      "default": "horizontal",
+      "options": [
+        "horizontal",
+        "vertical"
+      ],
+      "optionLabels": {
+        "horizontal": {
+          "ru": "Горизонтально",
+          "en": "Horizontal"
+        },
+        "vertical": {
+          "ru": "Вертикально",
+          "en": "Vertical"
+        }
+      }
+    }
+  },
+  "events": {},
+  "strings": {}
+}

@@ -25,25 +25,9 @@ Requirements:
 - Browser access from other devices on a local network or a trusted VPN.
 - Chromium kiosk mode as the primary Raspberry Pi usage mode.
 
-### 2. Architectural philosophy
+### 2. Architecture
 
-The main value of the project is its modularity and extensibility.
-
-The core manages desktops, widget placement, configuration, saved state, profiles, the interface, and the extension lifecycle.
-
-Widgets are independent plugins. The core should not contain logic specific to any particular widget.
-
-Key requirements:
-
-1. The application must start correctly with no plugins installed.
-2. Installing a new plugin must not require manual changes to the core source code.
-3. A failed or missing plugin must not break other widgets or desktops.
-4. Missing plugins should appear as placeholders while preserving instance settings.
-5. One plugin can have multiple instances with independent settings and appearance.
-6. The architecture should allow a visual builder and a Python code editor to be added later.
-7. The data model should accommodate future profiles, themes, appearance options, and component types.
-
-Avoid premature abstraction and unnecessary complexity. Provide extension points without implementing speculative features.
+The core owns desktops, placements, synchronization and server task lifecycle. A widget project supplies a declarative interface and ordinary Python logic. Element packages extend the component library independently. Empty catalogs and missing modules must leave the desktop usable.
 
 ### 3. Desktops
 
@@ -62,33 +46,13 @@ The interface resembles a minimalist Android home screen with widgets:
 
 The touchscreen has priority, but all essential operations must also work with a mouse in a regular browser.
 
-### 4. Plugin system
+### 4. Projects and elements
 
-Each plugin lives in its own directory under `plugins/`.
+Each project lives in widgets/<id>/ and contains a manifest, Python and assets. The designer and hand-authored projects share one format. Packages in elements/<id>/ declare properties, defaults, events and inspector metadata. Extensions are installed on the host.
 
-Its structure should support:
+### 5. Instances
 
-- A manifest describing the ID, version, description, and capabilities.
-- A React component for the compact widget.
-- An optional React component for an expanded view.
-- An optional settings component.
-- An optional Python backend.
-- Its own resources and dependencies.
-
-Define a stable plugin contract and API so the platform can grow without constantly modifying the core.
-
-Early phases may require rebuilding the frontend and restarting the backend when a plugin is installed. Dynamic package installation is a future goal.
-
-### 5. Widget instance structure
-
-Keep **Plugin** and **WidgetInstance** separate.
-
-- **Plugin** describes functionality and source code.
-- **WidgetInstance** is a specific placement of that plugin on a desktop.
-
-An instance has its own ID, functional settings, appearance, size, position, and desktop association.
-
-Functional configuration must not be tightly coupled to visual appearance.
+A WidgetInstance retains its project reference even when the folder is missing. It owns its placement, settings, permitted appearance and execution overrides, properties and history. The project owns dimensions and layout. A missing element type renders a placeholder. See the [authoring guide](WIDGET_AUTHORING.md).
 
 ### 6. Widget interfaces
 
@@ -148,8 +112,6 @@ Each integration must remain independent of the core.
 
 Maintain architectural room for:
 
-- A graphical widget builder.
-- A Python handler editor.
 - Installing widgets from ZIP files.
 - A public plugin library or marketplace.
 - Permission and dependency management.

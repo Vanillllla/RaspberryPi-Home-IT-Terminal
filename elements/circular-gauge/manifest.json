@@ -1,0 +1,85 @@
+{
+  "apiVersion": 1,
+  "id": "circular-gauge",
+  "version": "1.0.0",
+  "name": {
+    "ru": "Круговая шкала",
+    "en": "Circular gauge"
+  },
+  "description": {
+    "ru": "Независимый модуль. Отображает число на дуге и реагирует на нажатие.",
+    "en": "An independent module. Displays a numeric arc and responds to clicks."
+  },
+  "defaultFrame": {
+    "x": 0,
+    "y": 0,
+    "w": 96,
+    "h": 96
+  },
+  "properties": {
+    "value": {
+      "type": "number",
+      "label": {
+        "ru": "Значение",
+        "en": "Value"
+      },
+      "default": 50
+    },
+    "minimum": {
+      "type": "number",
+      "label": {
+        "ru": "Минимум",
+        "en": "Minimum"
+      },
+      "default": 0
+    },
+    "maximum": {
+      "type": "number",
+      "label": {
+        "ru": "Максимум",
+        "en": "Maximum"
+      },
+      "default": 100
+    },
+    "color": {
+      "type": "color",
+      "label": {
+        "ru": "Цвет",
+        "en": "Color"
+      },
+      "default": "#168567"
+    },
+    "label": {
+      "type": "string",
+      "label": {
+        "ru": "Подпись",
+        "en": "Label"
+      },
+      "default": "Level",
+      "localized": true
+    },
+    "enabled": {
+      "type": "boolean",
+      "label": {
+        "ru": "Доступен",
+        "en": "Enabled"
+      },
+      "default": true
+    }
+  },
+  "events": {
+    "onClick": {
+      "description": {
+        "ru": "Нажатие",
+        "en": "Activated"
+      },
+      "writes": []
+    }
+  },
+  "strings": {
+    "Level": {
+      "ru": "Уровень",
+      "en": "Level"
+    }
+  }
+}

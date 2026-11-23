@@ -1,10 +1,8 @@
 from .i18n import tr
 
 COLUMNS = 12
-DEFAULT_WIDTH = 4
-DEFAULT_HEIGHT = 2
-# Enough rows for all 4096 legacy slots in a three-column landscape layout.
 MAX_ROWS = 2732
+
 
 def row_count(widgets):
     bottom = max((w["slot"] // COLUMNS + w["height"] for w in widgets), default=0)

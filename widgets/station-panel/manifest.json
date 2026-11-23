@@ -1,0 +1,181 @@
+{
+  "apiVersion": 1,
+  "id": "station-panel",
+  "name": {
+    "en": "Station panel",
+    "ru": "Панель станции"
+  },
+  "description": {
+    "en": "One station name shared by three views.",
+    "ru": "Общее имя станции для карточки, подробностей и настроек."
+  },
+  "version": "1.0.0",
+  "author": "Pi Terminal",
+  "width": 4,
+  "height": 2,
+  "logic": "logic/main.py",
+  "views": {
+    "widget": {
+      "width": 720,
+      "height": 480,
+      "nodes": [
+        {
+          "id": "station",
+          "type": "text",
+          "frame": {
+            "x": 12,
+            "y": 16,
+            "w": 340,
+            "h": 56
+          },
+          "props": {
+            "text": "Station",
+            "fontSize": 30
+          },
+          "events": {}
+        },
+        {
+          "id": "reading",
+          "type": "text",
+          "frame": {
+            "x": 12,
+            "y": 84,
+            "w": 340,
+            "h": 48
+          },
+          "props": {
+            "text": "Ready"
+          },
+          "events": {}
+        }
+      ]
+    },
+    "details": {
+      "width": 720,
+      "height": 480,
+      "nodes": [
+        {
+          "id": "detailName",
+          "type": "text",
+          "frame": {
+            "x": 20,
+            "y": 20,
+            "w": 440,
+            "h": 64
+          },
+          "props": {
+            "text": "Station",
+            "fontSize": 38
+          },
+          "events": {}
+        },
+        {
+          "id": "detailStatus",
+          "type": "text",
+          "frame": {
+            "x": 20,
+            "y": 108,
+            "w": 440,
+            "h": 52
+          },
+          "props": {
+            "text": "Ready"
+          },
+          "events": {}
+        },
+        {
+          "id": "inspect",
+          "type": "button",
+          "frame": {
+            "x": 20,
+            "y": 196,
+            "w": 200,
+            "h": 48
+          },
+          "props": {
+            "text": "Check station"
+          },
+          "events": {
+            "onClick": "check"
+          }
+        }
+      ]
+    },
+    "settings": {
+      "width": 600,
+      "height": 180,
+      "nodes": [
+        {
+          "id": "nameInput",
+          "type": "input",
+          "frame": {
+            "x": 16,
+            "y": 16,
+            "w": 260,
+            "h": 48
+          },
+          "props": {
+            "value": "Station",
+            "label": "Station name"
+          },
+          "events": {
+            "onChange": "rename"
+          }
+        },
+        {
+          "id": "hint",
+          "type": "text",
+          "frame": {
+            "x": 16,
+            "y": 84,
+            "w": 480,
+            "h": 54
+          },
+          "props": {
+            "text": "Press Enter to apply the station name."
+          },
+          "events": {}
+        }
+      ]
+    }
+  },
+  "settings": {
+    "stationName": {
+      "type": "string",
+      "label": {
+        "en": "Station name",
+        "ru": "Имя станции"
+      },
+      "default": "Station"
+    }
+  },
+  "strings": {
+    "Station": {
+      "en": "Station",
+      "ru": "Станция"
+    },
+    "Ready": {
+      "en": "Ready",
+      "ru": "Готово"
+    },
+    "Check station": {
+      "en": "Check station",
+      "ru": "Проверить станцию"
+    },
+    "Station name": {
+      "en": "Station name",
+      "ru": "Имя станции"
+    },
+    "Press Enter to apply the station name.": {
+      "en": "Press Enter to apply the station name.",
+      "ru": "Нажмите Enter, чтобы сохранить имя станции."
+    },
+    "Checked": {
+      "en": "Checked",
+      "ru": "Проверено"
+    }
+  },
+  "events": {
+    "settingsChanged": "show_name"
+  }
+}

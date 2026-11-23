@@ -1,0 +1,21 @@
+.engine-fit { position: relative; min-width: 0; min-height: 0; flex: 1; overflow: hidden; }
+.engine-plane { position: absolute; inset: 0 auto auto 0; transform-origin: top left; }
+.engine-surface, .engine-children { width: 100%; height: 100%; overflow: hidden; }
+.engine-node { position: relative; min-width: 0; min-height: 0; }
+.engine-node > :is(button,input,a,hr,label,output,.element-fill) { width: 100%; height: 100%; min-height: 0; margin: 0; }
+.engine-node :is(input, select, button) { font: inherit; }
+.engine-node > button { overflow: hidden; text-overflow: ellipsis; }
+.engine-node input:not([type=checkbox]):not([type=range]) { border: 1px solid var(--line); border-radius: 6px; padding: 4px 8px; }
+.element-fallback { display: block; border: 1px dashed currentColor; font-size: .85rem; overflow-wrap: anywhere; }
+.widget-scroll:has(.engine-fit) { overflow: hidden; }
+.details-view { height: calc(100% - 4rem); display: flex; flex-direction: column; }
+.instance-view { display: flex; height: clamp(180px,44vh,480px); }
+.engine-error { font-size: .85rem; margin: 2px; max-height: 4rem; overflow: auto; }
+.form-grid { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: .55rem; }
+.instance-config .engine-field { margin-block: .3rem; }
+.instance-config form { margin-block: .5rem; }
+.detail-trigger { background: transparent; border-color: transparent; }
+
+.instance-config, .instance-config form, .instance-config fieldset, .instance-config label { display: grid; gap: .55rem; }
+.instance-config fieldset { min-width: 0; border: 1px solid var(--line); border-radius: 8px; }
+.instance-config :is(input,select,textarea) { min-width: 0; max-width: 100%; padding: .5rem; font: inherit; border: 1px solid var(--line); border-radius: 5px; }

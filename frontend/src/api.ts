@@ -1,23 +1,11 @@
-import { getLanguage, translate, type Language } from './i18n'
-import type { Template } from './builder/model'
-import type { WidgetInstance } from './plugin'
+import { getLanguage, translate } from './i18n'
+import type { ElementType, Published, WidgetInstance } from './engine/model'
 
 export interface Desktop { id: number; name: string; rows: number; default_name?: boolean }
-export interface Manifest {
-  id: string
-  name: string
-  description: string
-  translations?: Partial<Record<Language, { name: string; description: string }>>
-  capabilities: string[]
-}
 export interface State {
-  revision: number
-  max_rows: number
-  columns: number
-  desktops: Desktop[]
-  widgets: WidgetInstance[]
-  templates: Template[]
-  plugins: Manifest[]
+  revision: number; max_rows: number; columns: number; desktops: Desktop[]
+  widgets: WidgetInstance[]; projects: Published[]; elements: ElementType[]
+  operations: Record<string, number>; diagnostics: Record<string, string>
 }
 
 export class ApiError extends Error {

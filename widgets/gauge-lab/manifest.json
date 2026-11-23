@@ -1,0 +1,82 @@
+{
+  "apiVersion": 1,
+  "id": "gauge-lab",
+  "name": {
+    "en": "Gauge control",
+    "ru": "Круговая шкала"
+  },
+  "description": {
+    "en": "Drive an independently installed element from Python.",
+    "ru": "Python изменяет свойства отдельно установленного элемента."
+  },
+  "version": "1.0.0",
+  "author": "Pi Terminal",
+  "width": 4,
+  "height": 2,
+  "logic": "logic/main.py",
+  "views": {
+    "widget": {
+      "width": 720,
+      "height": 480,
+      "nodes": [
+        {
+          "id": "dial",
+          "type": "circular-gauge",
+          "frame": {
+            "x": 8,
+            "y": 10,
+            "w": 156,
+            "h": 156
+          },
+          "props": {
+            "value": 25,
+            "label": "Level"
+          },
+          "events": {
+            "onClick": "advance"
+          }
+        },
+        {
+          "id": "advance",
+          "type": "button",
+          "frame": {
+            "x": 180,
+            "y": 54,
+            "w": 174,
+            "h": 56
+          },
+          "props": {
+            "text": "Advance"
+          },
+          "events": {
+            "onClick": "advance"
+          }
+        },
+        {
+          "id": "percent",
+          "type": "text",
+          "frame": {
+            "x": 184,
+            "y": 122,
+            "w": 160,
+            "h": 40
+          },
+          "props": {
+            "text": "25 %"
+          },
+          "events": {}
+        }
+      ]
+    }
+  },
+  "strings": {
+    "Level": {
+      "en": "Level",
+      "ru": "Уровень"
+    },
+    "Advance": {
+      "en": "Advance",
+      "ru": "Увеличить"
+    }
+  }
+}

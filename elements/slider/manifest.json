@@ -1,0 +1,88 @@
+{
+  "apiVersion": 1,
+  "id": "slider",
+  "version": "1.0.0",
+  "name": {
+    "ru": "Слайдер",
+    "en": "Slider"
+  },
+  "description": {
+    "ru": "Выбирает число из диапазона.",
+    "en": "Selects a number from a range."
+  },
+  "defaultFrame": {
+    "x": 0,
+    "y": 0,
+    "w": 184,
+    "h": 44
+  },
+  "properties": {
+    "label": {
+      "type": "string",
+      "label": {
+        "ru": "Подпись",
+        "en": "Label"
+      },
+      "default": "Slider",
+      "localized": true
+    },
+    "value": {
+      "type": "number",
+      "label": {
+        "ru": "Значение",
+        "en": "Value"
+      },
+      "default": 50
+    },
+    "minimum": {
+      "type": "number",
+      "label": {
+        "ru": "Минимум",
+        "en": "Minimum"
+      },
+      "default": 0
+    },
+    "maximum": {
+      "type": "number",
+      "label": {
+        "ru": "Максимум",
+        "en": "Maximum"
+      },
+      "default": 100
+    },
+    "step": {
+      "type": "number",
+      "label": {
+        "ru": "Шаг",
+        "en": "Step"
+      },
+      "default": 1,
+      "min": 0.000001
+    },
+    "enabled": {
+      "type": "boolean",
+      "label": {
+        "ru": "Доступен",
+        "en": "Enabled"
+      },
+      "default": true
+    }
+  },
+  "events": {
+    "onChange": {
+      "description": {
+        "ru": "Изменение значения",
+        "en": "Value changed"
+      },
+      "writes": [
+        "value"
+      ]
+    }
+  },
+  "strings": {
+    "Slider": {
+      "ru": "Слайдер",
+      "en": "Slider"
+    }
+  }
+}

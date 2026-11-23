@@ -1,0 +1,82 @@
+{
+  "apiVersion": 1,
+  "id": "text",
+  "version": "1.0.0",
+  "name": {
+    "ru": "Текст",
+    "en": "Text"
+  },
+  "description": {
+    "ru": "Отображает текст и результат вычисления.",
+    "en": "Displays text and computed results."
+  },
+  "defaultFrame": {
+    "x": 0,
+    "y": 0,
+    "w": 160,
+    "h": 44
+  },
+  "properties": {
+    "text": {
+      "type": "string",
+      "label": {
+        "ru": "Текст",
+        "en": "Text"
+      },
+      "default": "Text",
+      "localized": true
+    },
+    "color": {
+      "type": "color",
+      "label": {
+        "ru": "Цвет",
+        "en": "Color"
+      },
+      "default": "inherit"
+    },
+    "fontSize": {
+      "type": "number",
+      "label": {
+        "ru": "Кегль",
+        "en": "Font size"
+      },
+      "default": 18,
+      "min": 6,
+      "max": 160
+    },
+    "font": {
+      "type": "choice",
+      "label": {
+        "ru": "Шрифт",
+        "en": "Typeface"
+      },
+      "default": "inherit",
+      "options": [
+        "inherit",
+        "serif",
+        "monospace"
+      ],
+      "optionLabels": {
+        "inherit": {
+          "ru": "Системный",
+          "en": "System"
+        },
+        "serif": {
+          "ru": "С засечками",
+          "en": "Serif"
+        },
+        "monospace": {
+          "ru": "Моноширинный",
+          "en": "Monospace"
+        }
+      }
+    }
+  },
+  "events": {},
+  "strings": {
+    "Text": {
+      "ru": "Текст",
+      "en": "Text"
+    }
+  }
+}

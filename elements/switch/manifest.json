@@ -1,0 +1,63 @@
+{
+  "apiVersion": 1,
+  "id": "switch",
+  "version": "1.0.0",
+  "name": {
+    "ru": "Переключатель",
+    "en": "Switch"
+  },
+  "description": {
+    "ru": "Включает и выключает логическое значение.",
+    "en": "Toggles a boolean value."
+  },
+  "defaultFrame": {
+    "x": 0,
+    "y": 0,
+    "w": 152,
+    "h": 44
+  },
+  "properties": {
+    "label": {
+      "type": "string",
+      "label": {
+        "ru": "Подпись",
+        "en": "Label"
+      },
+      "default": "Switch",
+      "localized": true
+    },
+    "value": {
+      "type": "boolean",
+      "label": {
+        "ru": "Значение",
+        "en": "Value"
+      },
+      "default": false
+    },
+    "enabled": {
+      "type": "boolean",
+      "label": {
+        "ru": "Доступен",
+        "en": "Enabled"
+      },
+      "default": true
+    }
+  },
+  "events": {
+    "onChange": {
+      "description": {
+        "ru": "Изменение значения",
+        "en": "Value changed"
+      },
+      "writes": [
+        "value"
+      ]
+    }
+  },
+  "strings": {
+    "Switch": {
+      "ru": "Переключатель",
+      "en": "Switch"
+    }
+  }
+}

@@ -1,0 +1,53 @@
+{
+  "apiVersion": 1,
+  "id": "button",
+  "version": "1.0.0",
+  "name": {
+    "ru": "Кнопка",
+    "en": "Button"
+  },
+  "description": {
+    "ru": "Вызывает обработчик при нажатии.",
+    "en": "Calls a handler when pressed."
+  },
+  "defaultFrame": {
+    "x": 0,
+    "y": 0,
+    "w": 120,
+    "h": 44
+  },
+  "properties": {
+    "text": {
+      "type": "string",
+      "label": {
+        "ru": "Текст",
+        "en": "Text"
+      },
+      "default": "Button",
+      "localized": true
+    },
+    "enabled": {
+      "type": "boolean",
+      "label": {
+        "ru": "Доступен",
+        "en": "Enabled"
+      },
+      "default": true
+    }
+  },
+  "events": {
+    "onClick": {
+      "description": {
+        "ru": "Нажатие",
+        "en": "Activated"
+      },
+      "writes": []
+    }
+  },
+  "strings": {
+    "Button": {
+      "ru": "Кнопка",
+      "en": "Button"
+    }
+  }
+}

@@ -1,4 +1,4 @@
-import type { WidgetInstance } from './plugin'
+import type { WidgetInstance } from './engine/model'
 
 export const palettes = {
   white: 'Белый', black: 'Чёрный', green: 'Зелёный', red: 'Красный',
@@ -10,14 +10,10 @@ function palette(value: unknown, fallback: Palette): Palette {
   return typeof value === 'string' && Object.hasOwn(palettes, value) ? value as Palette : fallback
 }
 
-export function cardAppearance({ horizontalAlign, verticalAlign, titlePalette, cardPalette, hideTitle, customTitle }: WidgetInstance['appearance']) {
+export function cardAppearance({ titlePalette, cardPalette, hideTitle, customTitle }: WidgetInstance['appearance']) {
   return {
     customTitle: typeof customTitle === 'string' ? customTitle : '',
     hideTitle: hideTitle === true,
-    horizontalAlign: horizontalAlign === 'left' || horizontalAlign === 'center' || horizontalAlign === 'right'
-      ? horizontalAlign : undefined,
-    verticalAlign: verticalAlign === 'top' || verticalAlign === 'center' || verticalAlign === 'bottom'
-      ? verticalAlign : undefined,
     titlePalette: palette(titlePalette, 'black'),
     cardPalette: palette(cardPalette, 'white'),
   }
