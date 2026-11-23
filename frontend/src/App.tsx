@@ -41,6 +41,7 @@ export function App() {
   const [error, setError] = useState('')
   const [cellSize, setCellSize] = useState(80)
   const [rows, setRows] = useState(1)
+  const [transfer, setTransfer] = useState<{ id: number; desktop_id: number; slot: number } | null>(null)
   const [busy, setBusy] = useState(false)
   // A reset belongs to the widget instance, even when its desktop is temporarily unmounted.
   const [resetTimers] = useState(() => new Map<string, number>())
@@ -134,6 +135,26 @@ export function App() {
     })
   }
 
+  function moveWidget(id: number, slot: number, rows: number, destination: number) {
+    return runMutation(async () => {
+      const placement = { id, slot, desktop_id: destination }
+      const crossing = desktop?.id !== destination
+      if (crossing) {
+        setTransfer(placement)
+        select(destination)
+      }
+      try {
+        await api('widgets/' + id + '/position', 'PUT', { slot, rows, desktop_id: destination })
+        if (crossing) {
+          setData(current => current && { ...current, widgets: current.widgets.map(w => w.id === id ? { ...w, ...placement } : w) })
+        }
+        await reload()
+      } finally {
+        setTransfer(null)
+      }
+    })
+  }
+
   function removeDesktop(id: number) {
     return runMutation(async () => {
       const next = await api<State>('desktops/' + id, 'DELETE')
@@ -208,17 +229,13 @@ export function App() {
             <button className="primary add" onClick={() => setPanel({ mode: 'add' })}>{t('+ Виджет')}</button>
           </div>
         </div>
-        <DesktopPager desktops={data.desktops} active={desktop} select={select} blocked={panel !== null}
+        <DesktopPager desktops={data.desktops} active={desktop} select={select} blocked={panel !== null} animateNavigation={transfer?.desktop_id !== desktop.id}
           render={(page, interactive) => (
-            <Grid reportCellSize={page.id === desktop.id ? setCellSize : undefined} columns={data.columns} maxRows={data.max_rows} reportRows={page.id === desktop.id ? setRows : undefined} interactive={interactive && !busy} widgets={data.widgets}
+            <Grid reportCellSize={page.id === desktop.id ? setCellSize : undefined} columns={data.columns} maxRows={data.max_rows} reportRows={page.id === desktop.id ? setRows : undefined} interactive={interactive && !busy} widgets={transfer ? data.widgets.map(w => w.id === transfer.id ? { ...w, ...transfer } : w) : data.widgets}
               desktop={page} desktops={data.desktops}
               title={w => data.templates.find(t => t.id === w.plugin_id)?.name ?? localizedPlugins.find(p => p.id === w.plugin_id)?.name ?? w.plugin_id}
               openActions={id => setPanel({ mode: 'actions', id })}
-              move={(id, slot, rows, destination) => runMutation(async () => {
-                await api('widgets/' + id + '/position', 'PUT', { slot, rows, desktop_id: destination })
-                await reload()
-                if (destination !== page.id) select(destination)
-              })}
+              move={moveWidget}
               render={renderCard} />
           )} />
       </> : !error && <p>{t('Загрузка рабочего стола…')}</p>}

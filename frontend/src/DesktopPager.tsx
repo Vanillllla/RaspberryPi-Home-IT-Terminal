@@ -5,6 +5,7 @@ import type { Desktop } from './api'
 interface Props {
   desktops: Desktop[]
   active: Desktop
+  animateNavigation: boolean
   blocked: boolean
   select: (id: number) => void
   render: (desktop: Desktop, interactive: boolean) => ReactNode
@@ -14,7 +15,7 @@ type Peer = { desktop: Desktop; side: number }
 type Swipe = { pointer: number; x: number; y: number; width: number }
 const reducedMotion = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches
 
-export function DesktopPager({ desktops, active, blocked, select, render }: Props) {
+export function DesktopPager({ desktops, active, blocked, animateNavigation, select, render }: Props) {
   const track = useRef<HTMLDivElement>(null)
   const swipe = useRef<Swipe | null>(null)
   const offset = useRef(0)
@@ -51,11 +52,11 @@ export function DesktopPager({ desktops, active, blocked, select, render }: Prop
     if (active.id === old.id) return
     swipe.current = null
     const oldIndex = desktops.findIndex(d => d.id === old.id)
-    if (oldIndex < 0) { settle(0); return }
+    if (!animateNavigation || oldIndex < 0) { settle(0); return }
     const direction = Math.sign(index - oldIndex)
     setPeer({ desktop: old, side: -direction })
     settle(direction * track.current!.clientWidth + offset.current)
-  }, [active, desktops, index])
+  }, [active, desktops, index, animateNavigation])
 
   useLayoutEffect(() => {
     if (blocked) {

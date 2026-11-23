@@ -30,8 +30,8 @@ interface Press {
   tile: HTMLElement
   fromHandle: boolean
   timer?: number
-  edgeTimer?: number
   edge?: number
+  repeating?: boolean
   point?: { clientX: number; clientY: number }
   dragging: boolean
 }
@@ -54,13 +54,18 @@ export function Grid({ desktop, desktops, widgets: allWidgets, columns, maxRows,
   }, [])
 
   const [previewId, setPreviewId] = useState<number | null>(null)
+  const [edge, setEdge] = useState(0)
+  const [slide, setSlide] = useState<{ from: number; direction: number; width: number } | null>(null)
   const destination = desktops.find(d => d.id === previewId) ?? desktop
   const widgets = allWidgets.filter(w => w.desktop_id === destination.id)
   const [picked, setPicked] = useState<number | null>(null)
   const [dragging, setDragging] = useState<number | null>(null)
   const selected = allWidgets.find(w => w.desktop_id === desktop.id && w.id === (dragging ?? picked))
   const crossing = destination.id !== desktop.id
-  const tiles = crossing && selected && dragging !== null ? [...widgets, selected] : widgets
+  // Keep the captured tile mounted at the same DOM position throughout the gesture.
+  const tiles = slide || crossing
+    ? allWidgets.filter(w => w.desktop_id === destination.id || w.desktop_id === slide?.from || w.id === dragging)
+    : widgets
 
   // Tile padding provides the gutters inside each square's footprint.
   const preferredWidth = Math.max(720, area.width)
@@ -78,7 +83,8 @@ export function Grid({ desktop, desktops, widgets: allWidgets, columns, maxRows,
 
   function reset() {
     clearTimeout(press.current?.timer)
-    clearTimeout(press.current?.edgeTimer)
+    setEdge(0)
+    setSlide(null)
     setPreviewId(null)
     press.current = null
     setDragging(null)
@@ -110,7 +116,6 @@ export function Grid({ desktop, desktops, widgets: allWidgets, columns, maxRows,
       surface.removeEventListener('touchmove', touchMove)
       window.removeEventListener('keydown', escape)
       clearTimeout(press.current?.timer)
-      clearTimeout(press.current?.edgeTimer)
     }
   }, [interactive])
 
@@ -146,15 +151,40 @@ export function Grid({ desktop, desktops, widgets: allWidgets, columns, maxRows,
   }, [destination.id, rows, boardWidth])
 
   const index = desktops.findIndex(d => d.id === destination.id)
+  function showNeighbor(next: Desktop, direction: number) {
+    if (!window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      setSlide({ from: destination.id, direction, width: boardWidth })
+    }
+    setPreviewId(next.id)
+    setTarget(null)
+  }
+
+  useLayoutEffect(() => {
+    if (!slide) return
+    const timer = window.setTimeout(() => setSlide(null), 240)
+    return () => clearTimeout(timer)
+  }, [slide])
+
+  const next = desktops[index + edge]
+  useLayoutEffect(() => {
+    const grip = press.current
+    if (!edge || !next || !grip?.dragging) return
+    const timer = window.setTimeout(() => {
+      if (press.current !== grip || grip.edge !== edge) return
+      grip.repeating = true
+      showNeighbor(next, edge)
+    }, grip.repeating ? 1000 : 450)
+    return () => clearTimeout(timer)
+  }, [edge, destination.id, next?.id, boardWidth])
+
   function watchEdge(e: PointerEvent, grip: Press) {
     const bounds = viewport.current!.getBoundingClientRect()
     const side = e.clientX <= bounds.left + 18 ? -1 : e.clientX >= bounds.right - 18 ? 1 : 0
-    const edge = e.clientY >= bounds.top && e.clientY <= bounds.bottom ? side : 0
-    if (edge === grip.edge) return
-    clearTimeout(grip.edgeTimer)
-    grip.edge = edge
-    const next = desktops[index + edge]
-    if (edge && next) grip.edgeTimer = window.setTimeout(() => setPreviewId(next.id), 450)
+    const direction = e.clientY >= bounds.top && e.clientY <= bounds.bottom ? side : 0
+    if (direction === grip.edge) return
+    grip.edge = direction
+    grip.repeating = false
+    setEdge(direction)
   }
 
   async function finish(w: WidgetInstance, slot: number | null) {
@@ -237,12 +267,12 @@ export function Grid({ desktop, desktops, widgets: allWidgets, columns, maxRows,
     else { clearTimeout(grip.timer); press.current = null }
   }
 
-  function geometry(slot: number, width: number, height: number): CSSProperties {
-    const unit = 100 / columns
+  function geometry(slot: number, width: number, height: number, gridWidth = boardWidth): CSSProperties {
+    const unit = gridWidth / columns
     return {
-      '--x': (slot % columns) * unit + 'cqw',
-      '--y': Math.floor(slot / columns) * unit + 'cqw',
-      width: width * unit + 'cqw', height: height * unit + 'cqw',
+      '--x': (slot % columns) * unit + 'px',
+      '--y': Math.floor(slot / columns) * unit + 'px',
+      width: width * unit + 'px', height: height * unit + 'px',
     } as CSSProperties
   }
 
@@ -257,20 +287,24 @@ export function Grid({ desktop, desktops, widgets: allWidgets, columns, maxRows,
       if (!next) return null
       return <button key={side} className={'transfer-edge ' + (side < 0 ? 'left' : 'right')}
         aria-label={t('Перенести на стол «{name}»', { name: desktopName(next, t) })}
-        onClick={() => { setPreviewId(next.id); setTarget(null) }}>
+        onClick={() => showNeighbor(next, side)}>
         {side < 0 ? '‹' : '›'}
       </button>
     })}
     {crossing && <output className="transfer-desktop">{desktopName(destination, t)}</output>}
-    <div className="board-scroll" ref={viewport}>
+    <div className="board-scroll" ref={viewport} style={slide ? {
+      '--transfer-distance': (slide.direction * area.width) + 'px',
+    } as CSSProperties : undefined}>
       <div ref={board} className={'board' + (selected ? ' moving' : '')}
         style={{ width: boardWidth, aspectRatio: columns + '/' + rows }}>
-        <div className="grid-surface" />
+        <div key={destination.id + '-surface'} className={slide ? 'grid-surface transfer-enter' : 'grid-surface'} />
         {selected && target !== null && <div className="grid-target" style={geometry(target, selected.width, selected.height)} />}
         {tiles.map(w => <div key={w.id} data-slot={w.slot} data-widget={w.id}
-          inert={crossing && w.id !== dragging}
+          data-transfer={slide && w.id !== dragging ? (w.desktop_id === slide.from ? 'exit' : 'enter') : undefined}
+          inert={(crossing || w.desktop_id !== destination.id) && w.id !== dragging}
           className={'tile' + (dragging === w.id ? ' lifted' : '') + (selected?.id === w.id ? ' selected' : '')}
-          style={geometry(pending?.id === w.id ? pending.slot : w.slot, w.width, w.height)}>
+          style={geometry(pending?.id === w.id ? pending.slot : w.slot, w.width, w.height,
+            slide?.from === w.desktop_id && w.id !== dragging ? slide.width : boardWidth)}>
           <article data-palette={cardAppearance(w.appearance).cardPalette} onPointerDownCapture={e => start(e, w)} onPointerMove={e => pointerMove(e, w)}
             onPointerUp={e => pointerUp(e, w)} onPointerCancel={cancel} onLostPointerCapture={cancel}
             onContextMenu={e => { if (press.current?.dragging) e.preventDefault() }}

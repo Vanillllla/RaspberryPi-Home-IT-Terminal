@@ -183,3 +183,11 @@ input, select { color: var(--text); background-color: var(--surface); }
 .transfer-edge.right { right: 0; }
 .transfer-desktop { top: 0; left: 50%; transform: translateX(-50%); padding: .3rem .8rem;
   border-radius: 8px; background: var(--accent); color: var(--on-accent); pointer-events: none; }
+
+@media (prefers-reduced-motion: no-preference) {
+  .tile[data-transfer=enter], .transfer-enter { animation: transfer-enter 240ms ease-out both; }
+  .tile[data-transfer=exit] { animation: transfer-exit 240ms ease-out both; }
+  .grid-surface.transfer-enter { box-shadow: 0 0 0 1px var(--line); background: var(--canvas); }
+  @keyframes transfer-enter { from { transform: translateX(var(--transfer-distance)); } }
+  @keyframes transfer-exit { to { transform: translateX(calc(-1 * var(--transfer-distance))); } }
+}
