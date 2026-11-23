@@ -1,207 +1,161 @@
 # RaspberryPi-Home-IT-Terminal
 
-Локальный сенсорный рабочий стол на FastAPI, React и TypeScript. Сервер хранит столы и размещение виджетов в SQLite. В комплекте есть два независимых плагина — часы и демовиджет со счётчиком и настраиваемой подписью.
+English | [Русский](#русский)
 
-## Запуск из Debian WSL2
+## Project description
 
-Откройте два терминала **Debian WSL**. Если открыли PowerShell, сначала выполните `wsl -d Debian`. Команды ниже рассчитаны на репозиторий в `~/Projects/RaspberryDashboard`. Если он лежит в другом месте, подставьте свой путь.
+RaspberryPi-Home-IT-Terminal is an open-source modular dashboard for a Raspberry Pi 5 touchscreen. It provides multiple desktops with draggable, resizable widgets, a visual widget/template builder, and independent plugins (including a clock and developer demo). Functional settings, layout, and template data are stored in SQLite. The backend uses Python/FastAPI; the frontend uses React/TypeScript with Vite.
 
-### 1. Проверьте инструменты в Debian
+The current repository supports local development on Debian/WSL2 and Linux, including Raspberry Pi OS on a Raspberry Pi 5. It is **not yet a finished, automatically booting Raspberry Pi kiosk**: systemd and Chromium kiosk startup must be configured separately. The dashboard has **no authentication** and should only be used on the device or on a trusted LAN/VPN, never directly exposed to the public internet.
 
-Нужны Python 3.11 или новее и Linux-версия Node.js 22.12 или новее с npm. В терминале для frontend выполните:
+Technical documentation: [plugins](docs/eng/PLUGINS.md) · [template authoring](docs/eng/WIDGET_AUTHORING.md) · [project vision](docs/eng/PROJECT_VISION.md) · [roadmap](docs/eng/ROADMAP.md).
+
+## First launch
+
+### 1. Prepare the system
+
+Use **Debian under WSL2**, Debian Linux, or **64-bit Raspberry Pi OS** on Raspberry Pi 5. You need Python **3.11+**, `python3-venv`, `git`, and Node.js **22.12+** (Node 22 LTS) with npm. Vite 7 also supports Node.js 20.19+, but Node 22 is recommended. Install Node **inside Linux**, not from the Windows installation mounted in WSL.
 
 ```bash
+sudo apt update
+sudo apt install -y git python3 python3-venv python3-pip curl ca-certificates iputils-ping
 python3 --version
-command -v node
-command -v npm
-node -p 'process.platform + " " + process.version'
+node --version
 npm --version
+node -p process.platform
 ```
 
-Последняя проверка Node.js должна показать `linux v…`. Путь к npm должен вести к установке внутри Debian, например `/usr/bin/npm` или `/home/…/.nvm/…/bin/npm`. Путь под `/mnt/c/`, логи npm в `C:\Users\…` или вывод `win32` означают, что используется Windows-установка. Если Python или venv отсутствует, выполните `sudo apt update && sudo apt install -y python3 python3-venv`.
+If Node.js/npm are missing or too old, install a supported Node.js release with [nvm](https://github.com/nvm-sh/nvm#installing-and-updating) in the Linux shell, then run `nvm install 22` and `nvm use 22`. In WSL the last command above must print `linux`, not `win32`. Node 22.12 or newer is required within the 22.x series.
 
-Если Bash пишет `node: command not found`, а `command -v npm` показывает `/mnt/c/Program Files/nodejs/npm`, установите Node.js в Debian командами ниже. Ошибка `ENOTEMPTY` для `frontend/node_modules/.bin` с путём `\\wsl.localhost\Debian\…` тоже указывает на Windows npm. Сначала переключитесь на Linux-версию. Linux npm сам очистит старую папку зависимостей при выполнении `npm ci`.
-
-Если Linux-версии Node.js и npm нет или версия Node.js слишком старая, установите Node.js 22 через nvm прямо в Debian. [Инструкция nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
+Clone the project (or go to your existing checkout):
 
 ```bash
-sudo apt update && sudo apt install -y curl ca-certificates git
-curl -fsSL https://raw.githubusercontent.com/nvm-sh/nvm/v0.41.0/install.sh | bash
-export NVM_DIR="${NVM_DIR:-${XDG_CONFIG_HOME:-$HOME/.config}/nvm}"
-if [ ! -s "$NVM_DIR/nvm.sh" ]; then export NVM_DIR="$HOME/.nvm"; fi
-source "$NVM_DIR/nvm.sh"
-nvm install 22
-nvm use 22
-hash -r
+git clone https://github.com/Vanillllla/RaspberryPi-Home-IT-Terminal.git
+cd RaspberryPi-Home-IT-Terminal
 ```
 
-Повторите проверку версий и путей. Если nvm уже установлен, в терминале frontend достаточно выполнить `nvm use 22` после загрузки nvm.
+### 2. Install and start the backend — terminal 1
 
-### 2. Запустите backend в первом терминале
-
-Создание окружения и установка Python-зависимостей нужны при первом запуске. Активация `.venv` для этих команд не требуется.
+From the **repository root**:
 
 ```bash
-cd ~/Projects/RaspberryDashboard &&
-python3 -m venv .venv &&
-.venv/bin/python -m pip install -r backend/requirements.txt &&
+python3 -m venv .venv
+.venv/bin/python -m pip install -r backend/requirements.txt
 .venv/bin/python -m uvicorn backend.main:app --host 127.0.0.1 --port 8000
 ```
 
-Дождитесь строки `Application startup complete` и оставьте этот терминал открытым.
-Если Uvicorn уже слушает `127.0.0.1:8000`, переходите к настройке frontend во втором терминале.
+Keep this terminal open. Initial startup creates the SQLite database at `backend/data/terminal.sqlite3` (override with `TERMINAL_DB` if needed). The backend API is available at `http://127.0.0.1:8000/docs`. The isolated Python action runner uses Linux features and `libseccomp2`; install it on Debian/Raspberry Pi OS if needed (`sudo apt install -y libseccomp2`). Untrusted Python code must not be run on this development-oriented system.
 
-### 3. Запустите frontend во втором терминале
+### 3. Install and start the frontend — terminal 2
 
-Команды ниже переходят в корень и явно задают каталог frontend для обеих команд npm. Повторяйте `npm ci` после изменения зависимостей.
+From the **same repository root** in a second Linux terminal:
 
 ```bash
-(
-  npm_path=$(command -v npm)
-  if [[ "$(node -p process.platform 2>/dev/null)" != linux || "$npm_path" != /* || "$npm_path" == /mnt/* ]]; then
-    printf '%s\n' 'Нужны Node.js и npm внутри Debian. Выполните шаг 1 в этом терминале.' >&2
-    exit 1
-  fi
-
-  cd ~/Projects/RaspberryDashboard &&
-  test -f frontend/package.json &&
-  test -f frontend/package-lock.json &&
-  npm --prefix ./frontend ci &&
-  npm --prefix ./frontend run dev
-)
+npm --prefix ./frontend ci
+npm --prefix ./frontend run dev
 ```
 
-Откройте [Pi Terminal в браузере Windows](http://localhost:5173). Запуск рассчитан на стандартный проброс localhost в WSL2. Vite передаёт запросы `/api` на FastAPI. Для диагностики откройте [состояние приложения через Vite](http://localhost:5173/api/state). Остановить каждый процесс можно сочетанием Ctrl+C.
+Open `http://localhost:5173` in a browser **on the same device**, or from a Windows browser with WSL2 localhost forwarding. Check `http://localhost:5173/api/state` to verify the Vite proxy can reach FastAPI. Both services are bound to loopback by default, so other LAN devices cannot connect without an explicitly configured trusted-network proxy or forwarding. On Raspberry Pi OS open the URL in Chromium; **kiosk autostart is not configured by this repository**.
 
-Если команда остановилась без сообщения после проверки файлов, выполните `pwd` и `ls frontend/package.json frontend/package-lock.json` из корня проекта. Оба файла входят в репозиторий. Ошибка `EUSAGE` про отсутствующий lock-файл или `ENOENT` с путём к `package.json` в корне проекта означает, что npm искал файлы вне `frontend/`. Используйте блок команд выше с Linux-версией npm.
+Stop either running process with Ctrl+C.
 
-### Доступ из домашней сети и VPN
+## Subsequent launches
 
-В режиме WSL2 NAT Windows может принимать подключения на выбранных сетевых IPv4-адресах и передавать их на `127.0.0.1:5173`. Запустите оба процесса как описано выше и проверьте `http://127.0.0.1:5173/api/state` в Windows. Проброс использует Windows localhost, поэтому при смене внутреннего IP WSL обновлять его не требуется. [Сетевая документация WSL](https://learn.microsoft.com/windows/wsl/networking)
+Open two Linux terminals in the existing repository checkout. No reinstall is necessary unless dependencies have changed.
 
-Сначала включите WireGuard и проверьте, что VPN-адрес появился в Windows. В PowerShell от имени администратора найдите IPv4-адреса нужных интерфейсов командой `Get-NetIPAddress -AddressFamily IPv4`. В примере ниже оставьте только нужные адреса Windows и укажите подсети клиентов для каждого из них. Для WireGuard укажите адреса клиентов или подсети за пиром, которым нужен доступ. Адрес самого Windows-интерфейса WireGuard может иметь префикс `/32`.
+**Terminal 1 (backend):**
 
-```powershell
-$networks = @{
-    '192.168.1.106' = @('192.168.1.0/24') # Домашняя сеть
-    '10.77.77.2' = @('10.77.77.0/24')    # WireGuard
-}
-
-foreach ($address in $networks.Keys) {
-    $interface = (Get-NetIPAddress -AddressFamily IPv4 -IPAddress $address -ErrorAction Stop).InterfaceAlias
-    $name = "RaspberryDashboard-5173-$address"
-    if (Get-NetFirewallRule -Name $name -ErrorAction SilentlyContinue) {
-        Set-NetFirewallRule -Name $name -InterfaceAlias $interface -RemoteAddress $networks[$address] -ErrorAction Stop
-    } else {
-        New-NetFirewallRule -Name $name -DisplayName $name -Direction Inbound -Action Allow `
-            -Protocol TCP -LocalPort 5173 -LocalAddress $address -RemoteAddress $networks[$address] `
-            -InterfaceAlias $interface -ErrorAction Stop | Out-Null
-    }
-    # Пересоздаём запись после появления адреса интерфейса.
-    netsh.exe interface portproxy delete v4tov4 listenaddress=$address listenport=5173 | Out-Null
-    netsh.exe interface portproxy add v4tov4 listenaddress=$address listenport=5173 connectaddress=127.0.0.1 connectport=5173
-    if ($LASTEXITCODE -ne 0) { throw "Не удалось настроить проброс для $address" }
-}
+```bash
+cd RaspberryPi-Home-IT-Terminal
+.venv/bin/python -m uvicorn backend.main:app --host 127.0.0.1 --port 8000
 ```
 
-Проверьте проброс с Windows. `netsh interface portproxy show all` показывает сохранённые записи. Наличие записи ещё не подтверждает, что Windows принимает подключения.
+**Terminal 2 (frontend):**
 
-```powershell
-netstat -ano | Select-String '10\.77\.77\.2:5173\s+.*LISTENING'
-curl.exe --noproxy "*" --fail --show-error --max-time 5 http://10.77.77.2:5173/api/state
+```bash
+cd RaspberryPi-Home-IT-Terminal
+npm --prefix ./frontend run dev
 ```
 
-Если localhost отвечает, а слушателя на `10.77.77.2:5173` нет, проверьте, что служба `iphlpsvc` запущена (`Get-Service iphlpsvc`), и повторите настройку после появления VPN-адреса. Для восстановления только WireGuard оставьте в `$networks` одну запись `10.77.77.2`.
+Then open `http://localhost:5173`. Run `npm --prefix ./frontend ci` after changes to frontend dependencies, and `.venv/bin/python -m pip install -r backend/requirements.txt` when Python dependencies change. To check the source without launching the UI, run `npm --prefix ./frontend run build` and `.venv/bin/python -m unittest discover -s backend/tests` from the root.
 
-На другом устройстве откройте `http://<IPv4 Windows в этой сети>:5173`. Для проверки откройте также `/api/state` на том же адресе. У клиента WireGuard должен быть маршрут к VPN-адресу Windows через нужного пира. У дашборда нет авторизации, поэтому используйте только доверенные подсети и оставьте порт закрытым для интернета.
+---
 
-Если адрес Windows изменился или доступ больше не нужен, удалите проброс и правило для этого адреса. После смены адреса повторите настройку с новым IPv4.
+# Русский
 
-```powershell
-$address = '192.168.1.106'
-netsh.exe interface portproxy delete v4tov4 listenaddress=$address listenport=5173
-Remove-NetFirewallRule -Name "RaspberryDashboard-5173-$address"
+## Описание проекта
+
+**RaspberryPi-Home-IT-Terminal** — открытая модульная информационная панель для Raspberry Pi 5 с сенсорным экраном. Приложение поддерживает несколько рабочих столов, перемещение и изменение размера виджетов, визуальный конструктор шаблонов и независимые плагины (в том числе часы и демонстрационный виджет). Расположение, настройки и шаблоны сохраняются в SQLite. Серверная часть написана на Python/FastAPI, интерфейс — на React/TypeScript с Vite.
+
+Текущий проект можно запускать локально в Debian/WSL2 и Linux, в том числе на Raspberry Pi OS для Raspberry Pi 5. **Автоматический запуск в режиме киоска пока не реализован**: systemd и запуск Chromium в kiosk mode требуется настроить отдельно. **Авторизации нет** — не публикуйте интерфейс в интернет, используйте его только локально или в доверенной LAN/VPN.
+
+Техническая документация: [плагины](docs/ru/PLUGINS.md) · [создание шаблонов](docs/ru/WIDGET_AUTHORING.md) · [концепция](docs/ru/PROJECT_VISION.md) · [план развития](docs/ru/ROADMAP.md).
+
+## Первый запуск
+
+### 1. Подготовка системы
+
+Подойдут **Debian в WSL2**, Debian Linux или **64-битная Raspberry Pi OS** на Raspberry Pi 5. Нужны Python **3.11+**, `python3-venv`, `git`, Node.js **22.12+** (ветка Node 22 LTS) и npm. Vite 7 также допускает Node.js 20.19+, но рекомендуется Node 22. В WSL устанавливайте Node **в Linux**, а не используйте Windows-версию из подключённого диска.
+
+```bash
+sudo apt update
+sudo apt install -y git python3 python3-venv python3-pip curl ca-certificates iputils-ping
+python3 --version
+node --version
+npm --version
+node -p process.platform
 ```
 
-## Работа с прототипом
+Если Node.js/npm отсутствуют или слишком старые, установите актуальную поддерживаемую версию Node через [nvm](https://github.com/nvm-sh/nvm#installing-and-updating) в терминале Linux, затем выполните `nvm install 22` и `nvm use 22`. В WSL последняя проверка должна вывести `linux`, а не `win32`. Для ветки 22 необходима версия не ниже 22.12.
 
-- Первый запуск создаёт пустой рабочий стол. Нажмите **+ Виджет → Часы**. Повторите для второго экземпляра.
-- Добавьте **Демовиджет** на два стола. Кнопка «Нажатий» показывает локальный счётчик. Через **⋯ → Настройки** измените подпись одного экземпляра и нажмите «Сохранить». Подпись сохраняется в карточке и окне «Подробнее». Кнопка × и Esc возвращают на текущий стол.
-- Через **⋯ → Удалить виджет** можно удалить конкретную карточку, включая часы и заглушку. Остальные карточки сохраняют позиции. Освободившаяся ячейка доступна для добавления или переноса.
-- Удерживайте заголовок или свободное место карточки около 350 мс и ведите её к подсвеченной позиции. Чтобы начать перенос сразу, потяните ручку ⠿ в левом верхнем углу. Короткое нажатие на ручку позволяет выбрать ячейку мышью или клавиатурой. Esc отменяет выбор. На узком экране доступны горизонтальная прокрутка внутри сетки и кнопки со стрелками.
-- В **⋯ → Настройки → Размер** задайте ширину и высоту карточки в клетках. Новая карточка занимает 4×2. Подсветка при переносе показывает весь прямоугольник. Занятые клетки и края стола ограничивают перенос и изменение размера.
-- В **⋯ → Настройки → Выравнивание содержимого** выберите положение блока по горизонтали и вертикали и нажмите «Сохранить». Выбор относится к одной карточке и сохраняется при изменении её размера.
-- В **⋯ → Настройки → Оформление** отдельно выберите фон названия и фон карточки. Белый и чёрный меняются местами в тёмной теме. Кнопка **Сохранить** применяет оформление, размер, выравнивание и настройки плагина вместе.
-- Шестерёнка открывает **Настройки панели**, где можно выбрать светлую или тёмную тему. Выбор сохраняется в браузере.
-- В конструкторе откройте **Элементы интеграций → Ярлык**, укажите адрес HTTP или HTTPS и выберите подпись, PNG до 256 КиБ или оба варианта. Флажок **Использовать иконку сайта** загружает изображение с адреса `/favicon.ico` этого сайта. Нажатие на ярлык открывает ссылку в новой вкладке.
-- Нажмите вкладку **Рабочие столы** или потяните её вниз. В панели можно перейти сразу на любой стол, создать новый или переименовать выбранный. Повторное нажатие на вкладку, нажатие вне панели и Esc закрывают её.
-- Чтобы настроить последовательность перелистывания, выберите **Рабочие столы → Изменить порядок** и нажимайте ↑ или ↓ рядом с названием стола. Каждое перемещение сохраняется сразу.
-- В панели выберите **Удалить рабочий стол**, отметьте стол и нажмите **ОК**, чтобы удалить его вместе с виджетами. Последний рабочий стол защищён от удаления.
-- Переключайтесь между соседними столами сочетаниями Ctrl+← и Ctrl+→ или горизонтальным жестом по свободной области. Проведите пальцем или зажатой левой кнопкой мыши примерно на 60 пикселей, чтобы открыть соседний стол. Короткий жест возвращает страницу на место.
-- После обновления страницы и перезапуска сервера расположение восстанавливается из `backend/data/terminal.sqlite3`. Переменная `TERMINAL_DB` задаёт другой путь, например для проверки с отдельной базой.
-- Если папку плагина убрать и перезапустить оба процесса, существующие экземпляры покажут заглушку. Возвратите папку с прежним идентификатором и перезапустите процессы для восстановления виджетов.
+Клонируйте проект (или откройте уже существующую копию):
 
-### Переход со старой сетки
-
-При первом запуске backend переносит раскладку в одной транзакции. Старая база содержала только номер ячейки. За основу взят горизонтальный экран 1024×600 с тремя прежними колонками. Для старого номера `s` верхняя левая клетка получает координаты `x = (s % 3) * 4`, `y = (s // 3) * 2` и новый номер `slot = y * 12 + x`. Пустые места сохраняются. Число доступных рядов зависит от свободной высоты под навигацией. Если сохранённый стол выше окна, квадратные клетки уменьшаются до высоты, при которой виден нижний ряд. Изменение окна сохраняет координаты и размеры в SQLite.
-
-### Визуальный конструктор
-
-1. Нажмите **Создать виджет**, задайте название и размер новой карточки в клетках рабочего стола. У карточки 4×2 внутренняя сетка 20×10. Перетащите элемент из палитры на сетку или нажмите на него для добавления на свободное место.
-2. Выберите элемент и потяните за правый нижний угол его рамки, чтобы изменить ширину и высоту. Стрелки на сфокусированном элементе перемещают его, а на угловой ручке меняют размер. Шрифт и размер в пунктах задаются в свойствах. Текст обрезается по рамке. Переключатель и слайдер с пустой подписью занимают рамку без места под надпись.
-3. Настройте **Обновление** у текста или индикатора, затем нажмите **Сохранить шаблон**. Чтобы проверить выполнение действий, добавьте карточку через **+ Виджет** и выберите её в каталоге. Предпросмотр в конструкторе показывает компоновку. Чтобы отредактировать существующий шаблон, откройте **Создать виджет → Шаблон** и выберите его название. После сохранения все экземпляры получают новую версию.
-
-#### Режимы обновления
-
-| Режим | Что происходит |
-|---|---|
-| **Без обновления** | Текст показывает свою подпись, индикатор — начальный цвет. Выбор режима снимает привязку элемента к действию. |
-| **По таймеру** | Элемент получает результат действия сразу при переходе на его стол, затем через заданный интервал. Для часов откройте **Настроить действия**, выберите **Выполнить → Текущее время** и укажите **Интервал, с**. |
-| **По команде** | Элемент получает результат, когда кнопка, переключатель или слайдер в этой карточке отправляет совпадающую команду. Откройте **Настроить действия** и скопируйте значение поля **Команда запуска** в поле **Отправить команду** у отправителя. |
-
-**Два текста и две кнопки.** Выберите **По команде** для каждого текста. Редактор создаст отдельное действие для каждого и предложит свободные имена команд, например `refresh` и `refresh-2`. Перенесите первую команду в свойства первой кнопки, вторую — в свойства второй. Вкладка **Действия** у выбранной кнопки открывает действие по её команде. Если совпадений несколько, откроется первое, а нужное можно выбрать в списке **Действие**. При переименовании команды впишите новое имя и у отправителя. Поле **Элементы-отправители** показывает, какие элементы сейчас совпадают с командой запуска.
-
-**Цепочка из Python.** Кнопка может отправить `refresh`, а её обработчик — выбрать следующий шаг через `emit("read_sensor")` или `emit("show_idle")`. Укажите эти имена в поле **Команда запуска** следующих действий. В конструкторе кнопка **ⓘ** справа от **Действия** открывает пример с переключателем и справку по `context`, HTTP GET и проверке доступности.
-
-**Общее действие.** Чтобы одним запуском обновить несколько элементов, задайте им одинаковый режим и выберите одну запись в поле **Действие обновления**. Свободные элементы можно сразу отметить в списке **Получатели результата**. У каждого получателя может быть одно действие. Если существующую связь нужно разделить, выберите нужный текст или индикатор и нажмите **Создать отдельное действие**. Редактор скопирует настройки и поле результата, а у копии с запуском по команде появится новое имя команды. Укажите его у нужного отправителя.
-
-**Поле ввода.** Выберите формат **Текст**, **Число**, **IPv4**, **Дата** или **Время**. Настройте подсказку и размер шрифта. Число принимает цифры и одну точку. Дата и время используют поля браузера и передаются в действие как строки `YYYY-MM-DD` и `HH:MM`. В IPv4 точки уже стоят между четырьмя частями адреса. Можно вставить весь адрес целиком. Действие Python получает введённую строку через `context["values"]["ID_поля"]`. ID показан в свойствах поля. Впишите команду кнопки в **Сброс по команде**, чтобы действие получило значение на момент нажатия, а поле очистилось через полсекунды. При пустой настройке сброса значение остаётся в поле.
-
-**Проверка доступности** проверяет один хост через ICMP (в Debian нужен `iputils-ping`) либо TCP, если указан порт. Поля результата — `available`, `text` и `color`. Для текста выберите `text`, для индикатора — `color`. **HTTP GET** работает на сервере. Укажите HTTP(S) URL и путь к полю, например `cpu.temperature`. Пустой путь выбирает весь JSON. Максимальный размер ответа — 1 МиБ.
-
-Действие **Python** выполняет функцию доверенного автора в отдельном процессе Debian с таймаутом 4 секунды. В `context["values"]` доступны значения элементов по стабильным ID. Дважды щёлкните по элементу в предпросмотре, чтобы скопировать готовое выражение вида `context["values"]["ID_элемента"]`. Его можно вставить прямо в код. Список выражений также доступен в **Значения в context**.
-
-```python
-def run(context):
-    enabled = context["values"]["ID_переключателя"]
-    print("Проверка выполнена")
-    return {"text": "Включён" if enabled else "Выключен",
-            "color": "green" if enabled else "red"}
+```bash
+git clone https://github.com/Vanillllla/RaspberryPi-Home-IT-Terminal.git
+cd RaspberryPi-Home-IT-Terminal
 ```
 
-Назначьте тексту поле `text`, а индикатору — `color`. Допустимые цвета — `green`, `yellow`, `red`. Вывод `print()` и ошибки видны в карточке. Для вычислений загружены `math`, `datetime`, `statistics`, `re`, `json`. Процесс ограничен по памяти и системным вызовам через Debian-пакет `libseccomp2`. Сетевой ввод вынесен в готовые действия.
+### 2. Установка и запуск backend — терминал 1
 
-Шаблоны, параметры размещения, значения переключателей и слайдеров и результаты команд сохраняются в SQLite. Таймеры приостанавливаются при смене стола, скрытии вкладки браузера и открытии конструктора. Если действие ещё выполняется, очередной такт пропускается. Результаты таймеров хранятся в памяти. Панель и редактор предназначены для одного доверенного автора в локальной сети или VPN.
+Из **корня репозитория**:
 
-## Проверка сборки
+```bash
+python3 -m venv .venv
+.venv/bin/python -m pip install -r backend/requirements.txt
+.venv/bin/python -m uvicorn backend.main:app --host 127.0.0.1 --port 8000
+```
 
-Из корня репозитория выполните `npm --prefix ./frontend run build`. Команда проверяет типы ядра и плагинов и собирает frontend в `frontend/dist/`. Интерактивная документация REST API доступна при работающем backend. [FastAPI Swagger UI](http://localhost:8000/docs)
+Оставьте терминал открытым. При первом запуске создаётся база SQLite `backend/data/terminal.sqlite3` (путь можно изменить переменной `TERMINAL_DB`). Документация API доступна по адресу `http://127.0.0.1:8000/docs`. Изолированный обработчик Python использует механизмы Linux и `libseccomp2`; при необходимости установите библиотеку (`sudo apt install -y libseccomp2`). Не запускайте в этой системе Python-код от недоверенных авторов.
 
-## Материалы проекта
+### 3. Установка и запуск frontend — терминал 2
 
-- [Контракт плагинов и создание нового виджета](docs/PLUGINS.md)
-- [Формат шаблонов и примеры для импорта](WIDGET_AUTHORING.md)
-- [Архитектурная концепция](docs/PROJECT_VISION.md)
-- [Дорожная карта](docs/ROADMAP.md)
+Из **того же корня репозитория**, во втором терминале Linux:
 
-### Установка готового шаблона
+```bash
+npm --prefix ./frontend ci
+npm --prefix ./frontend run dev
+```
 
-В конструкторе нажмите **Загрузить шаблон** и выберите папку пакета или ZIP с этой папкой. В папке нужен единственный файл `template.json` с полями `id`, `name`, `rows` и `actions` в формате конструктора. Необязательное поле `description` содержит текст для каталога. ID состоит из префикса `template:` и 32 строчных шестнадцатеричных цифр. Предел размера файла и загружаемого архива — 8 МиБ.
+Откройте `http://localhost:5173` в браузере **на том же устройстве** либо в браузере Windows при стандартном пробросе localhost из WSL2. Проверьте `http://localhost:5173/api/state`: запрос должен пройти через прокси Vite в FastAPI. По умолчанию оба сервиса слушают только loopback — для доступа из LAN нужна отдельная настройка безопасного проброса или прокси в доверенной сети. На Raspberry Pi OS откройте страницу в Chromium; **автозапуск киоска в репозитории пока не настроен**.
 
-Для ручной установки поместите пакет в `template-packages/<имя-папки>/template.json` от корня репозитория и перезапустите backend обычной командой запуска. Причины отказа при запуске выводятся в журнал backend. Успешный импорт сохраняет шаблон в SQLite. Уже занятый ID защищён от перезаписи. Для редактирования выберите шаблон в **Создать виджет**, для размещения экземпляра — в **+ Виджет**.
+Для остановки каждого процесса нажмите Ctrl+C.
 
-Чтобы удалить шаблон, выберите его в **Создать виджет → Шаблон**, нажмите **Удалить шаблон** и подтвердите действие. Шаблон исчезнет из каталога, а его карточки останутся на столах с заглушкой. Вернуть шаблон можно через **Загрузить шаблон**, указав пакет с тем же ID. Автозагрузка при запуске пропускает удалённые шаблоны.
+## Последующие запуски
 
-## Лицензия
+Откройте два терминала Linux в уже скачанном проекте. Повторно устанавливать зависимости не нужно, если они не менялись.
 
-Проект распространяется по лицензии GNU General Public License версии 3 (`GPL-3.0-only`). [Полный текст лицензии](LICENSE)
+**Терминал 1 (backend):**
+
+```bash
+cd RaspberryPi-Home-IT-Terminal
+.venv/bin/python -m uvicorn backend.main:app --host 127.0.0.1 --port 8000
+```
+
+**Терминал 2 (frontend):**
+
+```bash
+cd RaspberryPi-Home-IT-Terminal
+npm --prefix ./frontend run dev
+```
+
+Откройте `http://localhost:5173`. После обновления frontend-зависимостей выполните `npm --prefix ./frontend ci`, а после изменения Python-зависимостей — `.venv/bin/python -m pip install -r backend/requirements.txt`. Для проверки исходников без запуска интерфейса из корня репозитория выполните `npm --prefix ./frontend run build` и `.venv/bin/python -m unittest discover -s backend/tests`.
