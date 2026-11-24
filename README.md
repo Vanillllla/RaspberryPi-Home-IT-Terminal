@@ -30,6 +30,10 @@ npm --prefix frontend run dev
 
 Откройте http://localhost:5173 в браузере Windows. Кнопка «+ Виджет» открывает библиотеку, «Создать виджет» — конструктор и редактор существующих проектов. Через настройки панели доступны русский и английский языки. Ctrl + ←/→ переключает столы, ручка на карточке позволяет её переместить. Для сенсорного ввода поддерживаются свайп и удержание. Оба сервиса можно остановить через Ctrl+C. Для повторного запуска нужны только две команды запуска.
 
+### Необязательный запуск через Electron
+
+Для встроенных веб-виджетов установите отдельную оболочку: `npm --prefix electron install`. Запустите backend и Vite на `127.0.0.1:5173`, затем `npm --prefix electron start`. Подробности и ограничения: [Electron](docs/ru/ELECTRON.md).
+
 ### Архитектура
 
 | Каталог | Назначение |
@@ -89,6 +93,10 @@ npm --prefix frontend run dev
 ```
 
 Open http://localhost:5173 in a Windows browser. + Widget opens the library. Create widget opens the designer for new and existing projects. Panel settings switches between English and Russian. Use Ctrl + Left/Right or swipe to switch desktops. Use the card handle to move an instance. Stop services with Ctrl+C. Subsequent sessions require just the two start commands.
+
+### Optional Electron launch
+
+For native web widgets, install the separate shell: `npm --prefix electron install`. Start the backend and Vite on `127.0.0.1:5173`, then `npm --prefix electron start`. See [Electron setup and limitations](docs/eng/ELECTRON.md).
 
 ### Project layout
 
