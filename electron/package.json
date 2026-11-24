@@ -1,0 +1,13 @@
+{
+  "name": "pi-terminal-electron",
+  "version": "0.1.0",
+  "private": true,
+  "main": "main.cjs",
+  "scripts": {
+    "start": "electron .",
+    "test": "node --test policy.test.cjs"
+  },
+  "devDependencies": {
+    "electron": "45.4.1"
+  }
+}

@@ -1,0 +1,40 @@
+{
+  "apiVersion": 1,
+  "id": "browser-view",
+  "version": "1.0.0",
+  "name": {
+    "ru": "Браузер",
+    "en": "Browser view"
+  },
+  "description": {
+    "ru": "Встроенная HTTPS-страница в Electron, ссылка в обычном браузере.",
+    "en": "Native HTTPS page in Electron; link in a regular browser."
+  },
+  "defaultFrame": {
+    "x": 0,
+    "y": 0,
+    "w": 320,
+    "h": 240
+  },
+  "properties": {
+    "url": {
+      "type": "string",
+      "default": "https://chatgpt.com/",
+      "label": {
+        "ru": "Адрес HTTPS",
+        "en": "HTTPS address"
+      }
+    },
+    "zoom": {
+      "type": "number",
+      "default": 1,
+      "min": 0.5,
+      "max": 2,
+      "label": {
+        "ru": "Масштаб",
+        "en": "Zoom"
+      }
+    }
+  },
+  "events": {}
+}
